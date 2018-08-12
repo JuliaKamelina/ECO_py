@@ -97,4 +97,9 @@ def tracker(**params):
     else:
         sample_dim = feature_dim
 
-    
+    # Size of the extracted feature maps
+    h, w = feature_sz.shape
+    feature_sz_cell = feature_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2)
+                                         .swapaxes(1,2)
+                                         .reshape(-1, num_feature_blocks, 2)
+     #permute

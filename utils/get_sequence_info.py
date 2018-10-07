@@ -11,3 +11,5 @@ def get_sequence_info(**seq):
         seq['num_frames'] = len(seq['image_files'])
         seq['rect_position'] = zeros((seq['num_frames'], 4))
         init_image = imread(seq['image_files'][0])
+
+    return(seq, init_image)

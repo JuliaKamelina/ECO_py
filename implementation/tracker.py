@@ -9,7 +9,7 @@ def tracker(**params):
     del params["seq"]
     if not im:
         seq["rect_position"] = []
-        results = list()
+        results = {}
         if (seq['format'] == 'otb'):
             results['type'] = 'rect'
             results['res'] = seq['rect_position']
@@ -38,10 +38,11 @@ def tracker(**params):
     params = init_default_params(params)
 
     #Global feature params
-    if "t_global" in params:
+    if "t_global" in params.keys():
         global_fparams = params["t_global"]
+        print global_fparams
     else:
-        global_fparams = []
+        global_fparams = {}
     global_fparams["use_gpu"] = params["use_gpu"]
     global_fparams["gpu_id"] = params["gpu_id"]
 

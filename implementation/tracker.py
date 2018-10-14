@@ -9,7 +9,21 @@ def tracker(**params):
     del params["seq"]
     if not im:
         seq["rect_position"] = []
-        seq, results = get_sequence_results(seq)
+        results = list()
+        if (seq['format'] == 'otb'):
+            results['type'] = 'rect'
+            results['res'] = seq['rect_position']
+        elif (seq['format'] == 'vot'):
+            print("vot format")
+            #seq.handle.quit(seq.handle)
+        else:
+            raise ValueError("Unknown sequence format")
+
+        if ('time' in seq.keys()):
+            results['fps'] = seq['num_frames'] / seq['time']
+        else:
+            results['fps'] = float('nan')
+        #seq, results = get_sequence_results(seq)
         return
 
     #Init position
@@ -103,4 +117,3 @@ def tracker(**params):
                                          .swapaxes(1,2)
                                          .reshape(-1, num_feature_blocks, 2)
      #permute
-    

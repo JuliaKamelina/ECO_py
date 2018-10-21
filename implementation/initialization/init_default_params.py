@@ -16,10 +16,10 @@ def init_default_params(**params):
 
     def_param_names = default_params.keys()
     for param_name in def_param_names:
-        if !(param in params.keys()):
+        if not param in params.keys():
             params[param_name] = default_params[param_name]
 
-    if params["use_projection_matrix"] == False
+    if params["use_projection_matrix"] == False:
         params["proj_init_method"] = 'none'
         params["update_projection_matrix"] = False
 

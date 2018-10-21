@@ -2,6 +2,10 @@ import numpy as np
 import cv2 as cv
 import math
 
+import init_features
+import initialization.init_default_params
+import get_sequence_info
+
 def tracker(**params):
     #Get sequence info
     # TODO: when load image use from scipy.ndimage import imread

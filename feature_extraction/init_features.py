@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.io
 import os
+import load_cnn
 
 def init_features(features, **gparams, is_color_image = False, img_sample_sz = 0, size_mode = ''):
     if (size_mode == ''):
@@ -64,3 +65,34 @@ def init_features(features, **gparams, is_color_image = False, img_sample_sz = 0
                 features[i]["fparams"]["input_size_scale"] = 1
             if not 'downsample_factor' in features[i]["fparams"].keys():
                 features[i]["fparams"]["downsample_factor"] = np.ones((1, len(features[i]["fparams"]["output_layer"])))
+
+            net = load_cnn(features[i]["fparams"], img_sample_sz)
+            features[i]["fparams"]["nDim"] = "net[\"info\"].dataSize[2:features{k}.fparams.output_layer+1]"
+
+            if 'receptiveFieldStride' in net["info"].keys():
+                shape = net["info"].receptiveFieldStride.shape
+                net_info_stride = np.ones(sape[0], shape[1]+1)
+                net_info_stride[:,1:shape[1]+1] = net["info"].receptiveFieldStride
+            else:
+                net_info_stride = np.array([[1],[1]])
+
+            for layer in features[i]["fparams"]["output_layer"]:
+                net_stride.append(net_info_stride[0][layer + 1])
+            net_stride = net_stride[np.newaxis]
+            net_stride = net_stride
+            downsample_factor = features[i]["fparams"]["downsample_factor"][np.newaxis]
+            downsample_factor = downsample_factor.T
+            features[i]["fparams"]["cell_size"] = net_stride * downsample_factor
+
+            features[i]["is_cell"] = True
+            features[i]["is_cnn"] = True
+        else:
+            raise ValueError("Unknown feature type")
+
+        if not 'cell_size' in features[i]["fparams"].keys():
+            features[i]["fparams"]["cell_size"] = 1
+        if not 'penalty' in features[i]["fparams"].keys():
+            features[i]["fparams"]["penalty"] = np.zeros((len(features[i]["fparams"]["nDim"]), 1))
+        feature_info["min_cell_size"][i] = min(features[i]["fparams"]["cell_size"])
+
+    

@@ -1,4 +1,4 @@
-def init_default_params(**params):
+def init_default_params(params):
     default_params = list()  # TODO: check default_params
     default_params["use_gpu"] = False
     default_params["gpu_id"] = []

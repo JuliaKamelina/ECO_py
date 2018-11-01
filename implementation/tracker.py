@@ -6,10 +6,11 @@ import init_features
 import initialization.init_default_params
 import get_sequence_info
 
-def tracker(**params):
+def tracker(params):
+    print params
     #Get sequence info
     # TODO: when load image use from scipy.ndimage import imread
-    seq, im = get_sequence_info(params["seq"])
+    seq, im = get_sequence_info(**params["seq"])
     del params["seq"]
     if not im:
         seq["rect_position"] = []
@@ -39,7 +40,7 @@ def tracker(**params):
     features = params["t_features"]
 
     #Set default parameters
-    params = init_default_params(params)
+    params = init_default_params(**params)
 
     #Global feature params
     if "t_global" in params.keys():
@@ -56,7 +57,7 @@ def tracker(**params):
     #Define data types
     if params["use_gpu"]:
         # TODO:
-        params["data_type"] = pycuda.gpuarray.zeros(...)
+        params["data_type"] = "pycuda.gpuarray.zeros(...)"
     else:
         params["data_type"] = 0
     params["data_type_complex"] = complex(params["data_type"])
@@ -98,27 +99,27 @@ def tracker(**params):
         img_sample_sz = np.array((base_target_sz[0]*2, base_target_sz[1]*2), float)
 
     # TODO:
-    features, global_fparams, feature_info = init_features(features, global_fparams, is_color_image, img_sample_sz, 'odd_cells')
+    features, global_fparams, feature_info = init_features(features, **global_fparams, is_color_image, img_sample_sz, 'odd_cells')
 
     # Set feature info
-    img_support_sz = feature_info["img_support_sz"]
-    feature_sz = feature_info["data_sz"]
-    feature_dim = feature_info["dim"]
-    num_feature_blocks = len(feature_dim)
-
-    # Get feature specific parameters
-    # TODO:
-    feature_params = init_feature_params(features, feature_info)
-    feature_extract_info = get_feature_extract_info(features)
-
-    if params["use_projection_matrix"]:
-        sample_dim = feature_params["compressed_dim"]
-    else:
-        sample_dim = feature_dim
-
-    # Size of the extracted feature maps
-    h, w = feature_sz.shape
-    feature_sz_cell = feature_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2)
-                                         .swapaxes(1,2)
-                                         .reshape(-1, num_feature_blocks, 2)
-     #permute
+    # img_support_sz = feature_info["img_support_sz"]
+    # feature_sz = feature_info["data_sz"]
+    # feature_dim = feature_info["dim"]
+    # num_feature_blocks = len(feature_dim)
+    #
+    # # Get feature specific parameters
+    # # TODO:
+    # feature_params = init_feature_params(features, feature_info)
+    # feature_extract_info = get_feature_extract_info(features)
+    #
+    # if params["use_projection_matrix"]:
+    #     sample_dim = feature_params["compressed_dim"]
+    # else:
+    #     sample_dim = feature_dim
+    #
+    # # Size of the extracted feature maps
+    # h, w = feature_sz.shape
+    # feature_sz_cell = feature_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2)
+    #                                      .swapaxes(1,2)
+    #                                      .reshape(-1, num_feature_blocks, 2)
+    #  #permute

@@ -3,7 +3,7 @@ import scipy.io
 import os
 import load_cnn
 
-def init_features(features, **gparams, is_color_image = False, img_sample_sz = 0, size_mode = ''):
+def init_features(features, gparams, is_color_image = False, img_sample_sz = 0, size_mode = ''):
     if (size_mode == ''):
         size_mode = 'same'
 
@@ -95,4 +95,19 @@ def init_features(features, **gparams, is_color_image = False, img_sample_sz = 0
             features[i]["fparams"]["penalty"] = np.zeros((len(features[i]["fparams"]["nDim"]), 1))
         feature_info["min_cell_size"][i] = min(features[i]["fparams"]["cell_size"])
 
-    
+    features = [x for _, x in sorted(zip(feature_info["min_cell_size"], features))]
+    feature_info["min_cell_size"].sort()
+
+    feature_info["dim"] = []
+    feature_info["penalty"] = []
+
+    for i in range(0,len(features)):
+        feature_info["dim"].append(features[i]["fparams"]["nDim"])
+        feature_info["penalty"].append(features[i]["fparams"]["penalty"])
+    feature_info["dim"] = np.array(feature_info["dim"])
+    feature_info["penalty"] = np.array(feature_info["penalty"])
+
+    cnn_feature_ind = -1
+    for i in range(0,len(features)):
+        if features[i]["is_cnn"]:
+            cnn_feature_ind = i

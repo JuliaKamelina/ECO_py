@@ -1,6 +1,6 @@
 import matplotlib.pyplot
 
-def get_sequence_info(**seq):
+def get_sequence_info(seq):
     if (!('format' in seq.keys())):
         seq['format'] = 'vot'  # TODO: CHECK!!!
 

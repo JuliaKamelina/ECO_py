@@ -67,6 +67,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = 0, 
                 features[i]["fparams"]["downsample_factor"] = np.ones((1, len(features[i]["fparams"]["output_layer"])))
 
             net = load_cnn(features[i]["fparams"], img_sample_sz)
+            # net["info"].blah_blah
             features[i]["fparams"]["nDim"] = "net[\"info\"].dataSize[2:features{k}.fparams.output_layer+1]"
 
             if 'receptiveFieldStride' in net["info"].keys():
@@ -111,3 +112,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = 0, 
     for i in range(0,len(features)):
         if features[i]["is_cnn"]:
             cnn_feature_ind = i
+
+    if cnn_feature_ind > 0 :
+        scale = features[cnn_feature_ind]["fparams"]["input_size_scale"]
+        new_img_sample_sz = img_sample_sz

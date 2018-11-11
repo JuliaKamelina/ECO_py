@@ -27,8 +27,8 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = 0, 
         if not 'useForGray' in f_keys:
             features[i]['fparams']['useForGray'] = True
 
-        if ((features[i]['fparams']['useForColor'] && is_color_image) ||
-            (features[i]['fparams']['useForGray'] && !is_color_image)):
+        if ((features[i]['fparams']['useForColor'] and is_color_image) or
+            (features[i]['fparams']['useForGray'] and  not is_color_image)):
             keep_features.append(features[i])
 
     features = keep_features
@@ -57,7 +57,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = 0, 
             features[i]["is_cell"] = False
             features[i]["is_cnn"] = False
 
-        elif 'get_cnn_layers' in features[i]["fparams"].keys() || 'get_OFcnn_layers' in features[i]["fparams"].keys():
+        elif 'get_cnn_layers' in features[i]["fparams"].keys() or 'get_OFcnn_layers' in features[i]["fparams"].keys():
             features[i]["fparams"]["output_layer"].sort()
             if not 'input_size_mode' in features[i]["fparams"].keys():
                 features[i]["fparams"]["input_size_mode"] = 'adaptive'
@@ -68,7 +68,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = 0, 
 
             net = load_cnn(features[i]["fparams"], img_sample_sz)
             # net["info"].blah_blah
-            features[i]["fparams"]["nDim"] = "net[\"info\"].dataSize[2:features{k}.fparams.output_layer+1]"
+            features[i]["fparams"]["nDim"] = net["info"].dataSize[2:features[i]["fparams"]["output_layer"]+1]
 
             if 'receptiveFieldStride' in net["info"].keys():
                 shape = net["info"].receptiveFieldStride.shape

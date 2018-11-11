@@ -2,6 +2,7 @@ import scipy.io
 import os
 import cv2 as cv
 import numpy as np
+import read_cnn
 
 def load_cnn(**fparams, im_size):
     cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -23,10 +24,10 @@ def load_cnn(**fparams, im_size):
     if ('inputSize' in net["meta"].keys()):
         net["meta"].inputSize = base_input_sz
 
-    if (net["meta"].normalization.averageImage.shape[0] > 1 || (net["meta"].normalization.averageImage.shape[1] > 1):
+    if (net["meta"].normalization.averageImage.shape[0] > 1 or (net["meta"].normalization.averageImage.shape[1] > 1):
         average_image = np.array(net["meta"].normalization.averageImage).astype('float32')
         new_shape = tuple(net["meta"].normalization.imageSize[0:2])
         net["meta"].normalization.averageImage = cv.resize(average_image, new_shape)
 
-    net["info"] = "vl_simplenn_display"
+    net["info"] = read_cnn(net)
     return (net)

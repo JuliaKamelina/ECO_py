@@ -2,8 +2,9 @@ import numpy as np
 import scipy.io
 import os
 import load_cnn
+import read_cnn
 
-def init_features(features, gparams, is_color_image = False, img_sample_sz = 0, size_mode = ''):
+def init_features(features, gparams, is_color_image = False, img_sample_sz = [], size_mode = ''):
     if (size_mode == ''):
         size_mode = 'same'
 
@@ -111,8 +112,48 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = 0, 
     cnn_feature_ind = -1
     for i in range(0,len(features)):
         if features[i]["is_cnn"]:
-            cnn_feature_ind = i
+            cnn_feature_ind = i  #last cnn feature
 
     if cnn_feature_ind > 0 :
         scale = features[cnn_feature_ind]["fparams"]["input_size_scale"]
-        new_img_sample_sz = img_sample_sz
+        new_img_sample_sz = np.aray(img_sample_sz)
+
+        net_info = net["info"]
+        if size_mode != "same" and features[cnn_feature_ind]["fparams"]["input_size_mode"] = "adaptive":
+            orig_sz = net["info"]["dataSize"][-1,0:2]/feaures[cnn_feature_ind]["fparams"]["downsample_factor"][-1]
+
+            if size_mode == "exact":
+                desired_sz = orig_sz + 1
+            elif size_mode == "odd_cells":
+                desired_sz = orig_sz + 1 + orig_sz%2
+
+            while desired_sz[0] > net_info["dataSize"][-1, 0]:
+                new_img_sample_sz += [1, 0]
+                net_info = read_cnn(net, [round(scale*new_img_sample_sz), 3, 1])
+
+            while desired_sz[1] > net_info["dataSize"][-1, 1]:
+                new_img_sample_sz += [0, 1]
+                net_info = read_cnn(net, [round(scale*new_img_sample_sz), 3, 1])
+
+        feature_info["img_sample_sz"] = np.round(new_img_sample_sz)
+
+        if (features[cnn_feature_ind]["fparams"]["input_size_mode"] == "adaptive"):
+            features[cnn_feature_ind]["img_input_sz"] = feature_info["img_sample_sz"]
+        else:
+            features[cnn_feature_ind]["img_input_sz"] = net["meta"].normalization.imageSize[0:2]
+
+        scaled_sample_sz = np.round(scale*features[cnn_feature_ind]["img_input_sz"])
+
+        if ('receptiveFieldStride' in net_info.keys()):
+            net_info_stride = net_info["receptiveFieldStride"]
+            net_info_stride = np.insert(net_info_stride, 0, [1, 1])
+        else:
+            net_info_stride = np.array([1, 1])
+
+        net_stride = net_info_stride[features[cnn_feature_ind]["fparams"]["output_layer"] + 1]
+        total_feat_sz = net_info["dataSize"][features[cnn_feature_ind]["fparams"]["output_layer"] + 1, 0:2]
+
+        shrink_number = max(2*np.ceil((net_stride[-1]*total_feat_sz[-1] - scaled_sample_sz)/(2*net_stride[-1])), 0)
+        deepest_layer_sz = total_feat_sz[-1] - shrink_number
+        scaled_support_sz = net_stride[-1]*deepest_layer_sz
+        

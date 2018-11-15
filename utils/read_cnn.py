@@ -1,13 +1,12 @@
 import numpy as np
-import scipy.io
 
-def read_cnn(net):
-    input_size = []
-    if ('inputSize' in net["meta"]._fieldnames):
-        input_size = net["meta"].inputSize
-    if ('normalization' in net["meta"]._fieldnames and
-        'imageSize' in net["meta"].normalization._fieldnames):
-        input_size = net["meta"].normalization.imageSize
+def read_cnn(net, input_size = []):
+    if (input_size == []):
+        if ('inputSize' in net["meta"]._fieldnames):
+            input_size = net["meta"].inputSize
+        if ('normalization' in net["meta"]._fieldnames and
+            'imageSize' in net["meta"].normalization._fieldnames):
+            input_size = net["meta"].normalization.imageSize
 
     info = {}
     info["support"] = np.array([])
@@ -21,8 +20,12 @@ def read_cnn(net):
         layer = net["layers"][i]
         support = []
         if (layer.type == "conv"):
-            support.append(max(layer.weights[0].shape[0], 1))
-            support.append(max(layer.weights[0].shape[1], 1))
+            if (len(layer.weights[0].shape) > 2):
+                support.append(max(layer.weights[0].shape[0], 1))
+                support.append(max(layer.weights[0].shape[1], 1))
+            else:
+                support.append(1)
+                support.append(1)
             support = np.array(support)
             support = (support - 1)*layer.dilate + 1
             info["support"] = np.insert(info["support"], i, support, axis=0)
@@ -80,7 +83,7 @@ def read_cnn(net):
     info["receptiveFieldOffset"] = np.array(info["receptiveFieldOffset"])
     info["receptiveFieldStride"] = np.array(info["receptiveFieldStride"])
 
-    info["dataSize"] = np.array(input_size)
+    info["dataSize"] = np.array(input_size, dtype=float)
     info["dataSize"] = info["dataSize"].reshape(1,len(input_size))
 
     for i in range(0, len(net["layers"])):
@@ -93,7 +96,7 @@ def read_cnn(net):
                                   np.sum(info["pad"][i, 2:4]) -
                                   info["support"][i,1])/info["stride"][i,1]) + 1)
         data_size.append(info["dataSize"][i,2])
-        print(info["dataSize"][i,2])
+        # print(info["dataSize"][i,2])
         data_size.append(info["dataSize"][i,3])
 
         if (layer.type == "conv"):
@@ -102,16 +105,15 @@ def read_cnn(net):
                 f = layer.weights[0]
             else:
                 f = layer.filters
+            # print "f"
+            # print f.shape
             if (len(f.shape) > 3 and f.shape[2] != 0):
                 data_size[2] = f.shape[3]
-            elif(len(f.shape) <= 3):
-                data_size[2] = 1
+                # print(1)
+            # elif(len(f.shape) <= 3):
+            #     data_size[2] = 1
+                # print(data_size[2])
 
         info["dataSize"] = np.insert(info["dataSize"], i+1, data_size, axis=0)
 
     return (info)
-
-if __name__ == "__main__":
-    net = scipy.io.loadmat('C:/Users/jkamelin/Documents/cw/ECO_py/feature_extraction/networks/imagenet-vgg-m-2048.mat', squeeze_me=True, struct_as_record=False)
-    info = read_cnn(net)
-    print(info)

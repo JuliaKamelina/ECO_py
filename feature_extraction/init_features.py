@@ -3,6 +3,7 @@ import scipy.io
 import os
 import load_cnn
 import read_cnn
+import set_cnn_input_size
 
 def init_features(features, gparams, is_color_image = False, img_sample_sz = [], size_mode = ''):
     if (size_mode == ''):
@@ -21,7 +22,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
         gparams['use_gpu'] = False
 
     keep_features = []
-    for i in range(1:len(features)):
+    for i in range(1,len(features)):
         f_keys = features[i]['fparams']
         if not 'useForColor' in f_keys:
             features[i]['fparams']['useForColor'] = True
@@ -35,9 +36,9 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
     features = keep_features
     num_features = len(features)
     feature_info = {}
-    feature_info['min_cell_size'] = np.zeros((num_frames, 1))
+    feature_info['min_cell_size'] = np.zeros((num_features, 1))
 
-    for i in range(1:len(features)):
+    for i in range(1,len(features)):
         if 'get_fhog' in features[i].keys():
             if not 'nOrients' in features[i]["fparams"].keys():
                 features[i]["fparams"]["nOrients"] = 9
@@ -73,18 +74,21 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
 
             if 'receptiveFieldStride' in net["info"].keys():
                 shape = net["info"].receptiveFieldStride.shape
-                net_info_stride = np.ones(sape[0], shape[1]+1)
+                net_info_stride = np.ones(shape[0], shape[1]+1)
                 net_info_stride[:,1:shape[1]+1] = net["info"].receptiveFieldStride
             else:
                 net_info_stride = np.array([[1],[1]])
 
+            stride_tmp = []
             for layer in features[i]["fparams"]["output_layer"]:
-                net_stride.append(net_info_stride[0][layer + 1])
-            net_stride = net_stride[np.newaxis]
-            net_stride = net_stride
+                stride_tmp.append(net_info_stride[0][layer + 1])
+            
+            stride_tmp = np.array(stride_tmp)
+            stride_tmp = stride_tmp[np.newaxis]
+            # net_stride = net_stride
             downsample_factor = features[i]["fparams"]["downsample_factor"][np.newaxis]
             downsample_factor = downsample_factor.T
-            features[i]["fparams"]["cell_size"] = net_stride * downsample_factor
+            features[i]["fparams"]["cell_size"] = stride_tmp * downsample_factor
 
             features[i]["is_cell"] = True
             features[i]["is_cnn"] = True
@@ -116,11 +120,11 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
 
     if cnn_feature_ind > 0 :
         scale = features[cnn_feature_ind]["fparams"]["input_size_scale"]
-        new_img_sample_sz = np.aray(img_sample_sz)
+        new_img_sample_sz = np.array(img_sample_sz)
 
         net_info = net["info"]
-        if size_mode != "same" and features[cnn_feature_ind]["fparams"]["input_size_mode"] = "adaptive":
-            orig_sz = net["info"]["dataSize"][-1,0:2]/feaures[cnn_feature_ind]["fparams"]["downsample_factor"][-1]
+        if size_mode != "same" and features[cnn_feature_ind]["fparams"]["input_size_mode"] == "adaptive":
+            orig_sz = net["info"]["dataSize"][-1,0:2]/features[cnn_feature_ind]["fparams"]["downsample_factor"][-1]
 
             if size_mode == "exact":
                 desired_sz = orig_sz + 1
@@ -156,4 +160,17 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
         shrink_number = max(2*np.ceil((net_stride[-1]*total_feat_sz[-1] - scaled_sample_sz)/(2*net_stride[-1])), 0)
         deepest_layer_sz = total_feat_sz[-1] - shrink_number
         scaled_support_sz = net_stride[-1]*deepest_layer_sz
+        
+        cnn_output_sz = np.round(scaled_support_sz/net_stride)
+        print cnn_output_sz
+        features[cnn_feature_ind]["fparams"]["start_ind"] = np.floor((total_feat_sz - cnn_output_sz)/2.0) + 1
+        features[cnn_feature_ind]["fparams"]["end_ind"] = features[cnn_feature_ind]["fparams"]["start_ind"] + cnn_output_sz - 1
+
+        feature_info["img_support_sz"] = np.round(scaled_support_sz*feature_info["img_sample_sz"]/scaled_sample_sz)
+        features[cnn_feature_ind]["fparams"]["net"] = set_cnn_input_size(net, feature_info["img_sample_sz"])
+
+        # if gparams["use_gpu"]
+
+    else:
+        max_cell_size = max(feature_info["min_cell_size"])
         

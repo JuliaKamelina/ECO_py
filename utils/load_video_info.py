@@ -12,15 +12,15 @@ def load_video_info(path):
 
     img_path = path + '/img/'
     img_files = list()
-    if (os.path.isfile('img_path' + '%04d' % 1 + '.png')):
+    if (os.path.isfile(img_path + '%04d' % 1 + '.png')):
         for i in range(1,seq["len"]):
-            img_files.append('img_path' + '%04d' % i + '.png')
-    elif (os.path.isfile('img_path' + '%04d' % 1 + '.jpg')):
+            img_files.append(img_path + '%04d' % i + '.png')
+    elif (os.path.isfile(img_path + '%04d' % 1 + '.jpg')):
         for i in range(1,seq["len"]):
-            img_files.append('img_path' + '%04d' % i + '.jpg')
-    elif (os.path.isfile('img_path' + '%04d' % 1 + '.bmp')):
+            img_files.append(img_path + '%04d' % i + '.jpg')
+    elif (os.path.isfile(img_path + '%04d' % 1 + '.bmp')):
         for i in range(1,seq["len"]):
-            img_files.append('img_path' + '%04d' % i + '.bmp')
+            img_files.append(img_path + '%04d' % i + '.bmp')
     else:
          raise ValueError("No images loaded")
 

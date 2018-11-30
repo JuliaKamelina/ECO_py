@@ -1,4 +1,5 @@
-import tracker
+import numpy as np
+from tracker import *
 
 def testing_ECO (seq): #parameters, res_path, bSaveImage
     hog_params = {}
@@ -20,9 +21,9 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
 
     cnn_params = {}
     cnn_params["nn_name"] = 'imagenet-vgg-m-2048.mat'
-    cnn_params["output_layer"] = [3, 14]               # Which layers to use
-    cnn_params["downsample_factor"] = [2, 1]           # How much to downsample each output layer
-    cnn_params["compressed_dim"] = [16, 64]            # Compressed dimensionality of each output layer
+    cnn_params["output_layer"] = np.array([3, 14])               # Which layers to use
+    cnn_params["downsample_factor"] = np.array([2, 1])           # How much to downsample each output layer
+    cnn_params["compressed_dim"] = np.array([16, 64])            # Compressed dimensionality of each output layer
     cnn_params["input_size_mode"] = 'adaptive'        # How to choose the sample size
     cnn_params["input_size_scale"] = 1                # Extra scale factor of the input samples to the network (1 is no scaling)
 
@@ -32,13 +33,13 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
         {'get_cnn_layers': (lambda im, fparams, gparams: get_cnn_layers(im, fparams, gparams)),
         'fparams': cnn_params},
         {'get_fhog': (lambda im, fparams, gparam: get_fhog(im, fparams, gparam)),
-        'fparams': hog_params},
-        {'get_colorspace': (lambda im, fparams, gparam: get_colorspace(im, fparams, gparam)),
-        'fparams': grayscale_params},
-        {'get_table_feature': (lambda im, fparams, gparam: get_table_feature(im, fparams, gparam)),
-        'fparams': cn_params},
-        {'get_table_feature': (lambda im, fparams, gparam: get_table_feature(im, fparams, gparam)),
-        'fparams': ic_params}
+        'fparams': hog_params}
+        # {'get_colorspace': (lambda im, fparams, gparam: get_colorspace(im, fparams, gparam)),
+        # 'fparams': grayscale_params},
+        # {'get_table_feature': (lambda im, fparams, gparam: get_table_feature(im, fparams, gparam)),
+        # 'fparams': cn_params},
+        # {'get_table_feature': (lambda im, fparams, gparam: get_table_feature(im, fparams, gparam)),
+        # 'fparams': ic_params}
     ]
 
     # Global feature parameters1s
@@ -135,4 +136,4 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
     params["seq"] = seq
 
     # Run tracker
-    results = tracker(**params)
+    results = tracker(params)

@@ -133,11 +133,11 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
 
             while desired_sz[0] > net_info["dataSize"][-1, 0]:
                 new_img_sample_sz += [1, 0]
-                net_info = read_cnn(net, [round(scale*new_img_sample_sz), 3, 1])
+                net_info = read_cnn(net, [np.round(scale*new_img_sample_sz), 3, 1])
 
             while desired_sz[1] > net_info["dataSize"][-1, 1]:
                 new_img_sample_sz += [0, 1]
-                net_info = read_cnn(net, [round(scale*new_img_sample_sz), 3, 1])
+                net_info = read_cnn(net, [np.round(scale*new_img_sample_sz), 3, 1])
 
         feature_info["img_sample_sz"] = np.round(new_img_sample_sz)
 
@@ -173,4 +173,25 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
 
     else:
         max_cell_size = max(feature_info["min_cell_size"])
+        if size_mode == 'same':
+            feature_info["img_sample_size"] = np.round(img_sample_size)
+        elif size_mode == 'exact':
+            feature_info["img_sample_size"] = np.round(img_sample_size/max_cell_size) * max_cell_size
+        elif size_mode == 'odd_cells':
+            new_img_sample_sz = (1 + 2*np.round(img_sample_sz / (2*max_cell_size))) * max_cell_size
+            feature_sz_choices = np.floor((new_img_sample_sz + np.array(range(0,max_cell_size)).reshape((max_cell_size, 1)).astype('float32'))/feature_info["min_cell_size"])
         
+        print "Oops I didn't expect to get here. (NO cnn features??!!)"
+
+    feature_info["data_sz_block"] = []
+    for i in range(0, len(features)):
+        if features[i]["is_cnn"]:
+            features[i]["img_sample_sz"] = feature_info["img_sample_sz"]
+            feature_info["data_sz_block"][i] = np.floor(cnn_output_sz/features[i]["fparams"]["downsample_factor"])
+        else:
+            features[i]["img_sample_sz"] = feature_info["img_support_sz"]
+            features[i]["img_input_sz"] = features[i]["img_sample_sz"]
+            feature_info["data_sz_block"].append(np.floor(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"]))
+    feature_info["data_sz"] = np.array(feature_info["data_sz_block"])
+    
+    return(features, gparams, feature_info)

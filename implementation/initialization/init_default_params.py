@@ -23,5 +23,5 @@ def init_default_params(params):
         params["proj_init_method"] = 'none'
         params["update_projection_matrix"] = False
 
-    params["visualization"] = params["isualization"] | params["debug"]
+    params["visualization"] = params["visualization"] | params["debug"]
     return(params)

@@ -1,6 +1,6 @@
 import numpy as np
 import cv2 as cv
-import read_cnn
+from read_cnn import *
 
 def set_cnn_input_size(net, im_size):
     net["meta"].normalization.imageSize[0:2] = np.round(im_size[0:2])

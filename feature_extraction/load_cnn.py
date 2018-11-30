@@ -2,7 +2,7 @@ import scipy.io
 import os
 import cv2 as cv
 import numpy as np
-import read_cnn
+from read_cnn import *
 
 def load_cnn(fparams, im_size):
     cur_path = os.path.dirname(os.path.abspath(__file__))

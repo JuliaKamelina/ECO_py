@@ -10,7 +10,6 @@ from init_default_params import *
 from init_feature_params import *
 
 def tracker(params):
-    print params
     #Get sequence info
     seq, im = get_sequence_info(params["seq"])
     del params["seq"]
@@ -94,7 +93,7 @@ def tracker(params):
     if params["search_area_shape"] == 'proportional':
         img_sample_sz = math.floor(base_target_sz * params["search_area_scale"])
     if params["search_area_shape"] == 'square':
-        img_sample_sz = np.tile(math.sqrt(np.prod(base_target_sz*params["search_area_scale"])), 1, 2)[0]
+        img_sample_sz = np.tile(math.sqrt(np.prod(base_target_sz*params["search_area_scale"])), (1, 2))[0]
     if params["search_area_shape"] == 'fix_padding':
         img_sample_sz = base_target_sz + math.sqrt(np.prod(base_target_sz*params["search_area_scale"]) + (base_target_sz[0] - base_target_sz[1])/4) - sum(base_target_sz)/2
     if params["search_area_shape"] == 'custom':

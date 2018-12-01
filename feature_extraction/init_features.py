@@ -1,9 +1,9 @@
 import numpy as np
 import scipy.io
 import os
-import load_cnn
-import read_cnn
-import set_cnn_input_size
+from load_cnn import *
+from read_cnn import *
+from set_cnn_input_size import *
 
 def init_features(features, gparams, is_color_image = False, img_sample_sz = [], size_mode = ''):
     if (size_mode == ''):
@@ -22,7 +22,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
         gparams['use_gpu'] = False
 
     keep_features = []
-    for i in range(1,len(features)):
+    for i in range(0,len(features)):
         f_keys = features[i]['fparams']
         if not 'useForColor' in f_keys:
             features[i]['fparams']['useForColor'] = True
@@ -38,7 +38,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
     feature_info = {}
     feature_info['min_cell_size'] = np.zeros((num_features, 1))
 
-    for i in range(1,len(features)):
+    for i in range(0,len(features)):
         if 'get_fhog' in features[i].keys():
             if not 'nOrients' in features[i]["fparams"].keys():
                 features[i]["fparams"]["nOrients"] = 9
@@ -46,7 +46,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
             features[i]["is_cell"] = False
             features[i]["is_cnn"] = False
 
-        elif 'get_table_feature' in features[i]["fparams"].keys():
+        elif 'get_table_feature' in features[i].keys():
             cur_path = os.path.dirname(os.path.abspath(__file__))
             load_path = cur_path + '/lookup_tables' + features[i]["fparams"]["tablename"]
             table = scipy.io.loadmat(load_path)
@@ -54,12 +54,12 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
             features[i]["is_cell"] = False
             features[i]["ic_cnn"] = False
 
-        elif 'get_colorspace' in features[i]["fparams"].keys():
+        elif 'get_colorspace' in features[i].keys():
             features[i]["fparams"]["nDim"] = 1
             features[i]["is_cell"] = False
             features[i]["is_cnn"] = False
 
-        elif 'get_cnn_layers' in features[i]["fparams"].keys() or 'get_OFcnn_layers' in features[i]["fparams"].keys():
+        elif 'get_cnn_layers' in features[i].keys() or 'get_OFcnn_layers' in features[i].keys():
             features[i]["fparams"]["output_layer"].sort()
             if not 'input_size_mode' in features[i]["fparams"].keys():
                 features[i]["fparams"]["input_size_mode"] = 'adaptive'
@@ -70,12 +70,12 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
 
             net = load_cnn(features[i]["fparams"], img_sample_sz)
             # net["info"].blah_blah
-            features[i]["fparams"]["nDim"] = net["info"].dataSize[2:features[i]["fparams"]["output_layer"]+1]
+            features[i]["fparams"]["nDim"] = net["info"]["dataSize"][2:features[i]["fparams"]["output_layer"]+1]
 
             if 'receptiveFieldStride' in net["info"].keys():
-                shape = net["info"].receptiveFieldStride.shape
+                shape = net["info"]["receptiveFieldStride"].shape
                 net_info_stride = np.ones(shape[0], shape[1]+1)
-                net_info_stride[:,1:shape[1]+1] = net["info"].receptiveFieldStride
+                net_info_stride[:,1:shape[1]+1] = net["info"]["receptiveFieldStride"]
             else:
                 net_info_stride = np.array([[1],[1]])
 

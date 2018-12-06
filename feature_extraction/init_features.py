@@ -70,25 +70,27 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
 
             net = load_cnn(features[i]["fparams"], img_sample_sz)
             # net["info"].blah_blah
-            features[i]["fparams"]["nDim"] = net["info"]["dataSize"][2:features[i]["fparams"]["output_layer"]+1]
+            layer_dim_ind = features[i]["fparams"]["output_layer"] - 1
+            features[i]["fparams"]["nDim"] = net["info"]["dataSize"][layer_dim_ind, 2]
 
             if 'receptiveFieldStride' in net["info"].keys():
                 shape = net["info"]["receptiveFieldStride"].shape
-                net_info_stride = np.ones(shape[0], shape[1]+1)
+                net_info_stride = np.ones((shape[0], shape[1]+1))
                 net_info_stride[:,1:shape[1]+1] = net["info"]["receptiveFieldStride"]
             else:
                 net_info_stride = np.array([[1],[1]])
 
             stride_tmp = []
-            for layer in features[i]["fparams"]["output_layer"]:
-                stride_tmp.append(net_info_stride[0][layer + 1])
+            # for layer in features[i]["fparams"]["output_layer"]:
+            #     stride_tmp.append(net_info_stride[0][layer + 1])
             
-            stride_tmp = np.array(stride_tmp)
-            stride_tmp = stride_tmp[np.newaxis]
+            # stride_tmp = np.array(stride_tmp)
+            # stride_tmp = stride_tmp[np.newaxis]
             # net_stride = net_stride
+            stride_tmp = net_info_stride[layer_dim_ind,0]
             downsample_factor = features[i]["fparams"]["downsample_factor"][np.newaxis]
             downsample_factor = downsample_factor.T
-            features[i]["fparams"]["cell_size"] = stride_tmp * downsample_factor
+            features[i]["fparams"]["cell_size"] = np.dot(stride_tmp, downsample_factor)
 
             features[i]["is_cell"] = True
             features[i]["is_cnn"] = True

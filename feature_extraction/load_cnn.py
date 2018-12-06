@@ -6,7 +6,7 @@ from read_cnn import *
 
 def load_cnn(fparams, im_size):
     cur_path = os.path.dirname(os.path.abspath(__file__))
-    load_path = "{}\\networks\\{}".format(cur_path, fparams["nn_name"])
+    load_path = "{}/networks/{}".format(cur_path, fparams["nn_name"])
     net = scipy.io.loadmat(load_path, squeeze_me=True, struct_as_record=False)
     #vl_simplenn_tidy(net)
     net["layers"] = net["layers"][0:max(fparams["output_layer"])]

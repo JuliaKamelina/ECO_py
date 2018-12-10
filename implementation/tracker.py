@@ -77,14 +77,13 @@ def tracker(params):
     # TODO:
 
     # Calculate search area and initial scale factor
-    search_area = np.prod(np.array(init_target_sz, float) * params["search_area_scale"])
+    search_area = np.prod(init_target_sz * params["search_area_scale"])
     if search_area > params["max_image_sample_size"]:
         currentScaleFactor = math.sqrt(search_area / params["max_image_sample_size"])
+    elif search_area < params["min_image_sample_size"]:
+        currentScaleFactor = math.sqrt(search_area / params["min_image_sample_size"])
     else:
-        if  search_area < params["min_image_sample_size"]:
-            currentScaleFactor = math.sqrt(search_area / params["min_image_sample_size"])
-        else:
-            currentScaleFactor = 1.0
+        currentScaleFactor = 1.0
 
     # target size at the initial scale
     base_target_sz = np.array(target_sz, float) / currentScaleFactor

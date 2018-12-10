@@ -19,7 +19,7 @@ def load_cnn(fparams, im_size):
         raise ValueError("Unnown input_size_mode")
 
     net["meta"].normalization.imageSize[0:2] = np.round(base_input_sz * fparams["input_size_scale"])
-    #net["meta"].normalization.averageImageOri = net["meta"]["normalization"]["averageImage"]
+    net["meta"].normalization.averageImageOrig = net["meta"].normalization.averageImage
 
     if ('inputSize' in net["meta"]._fieldnames):
         net["meta"].inputSize = base_input_sz

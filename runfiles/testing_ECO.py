@@ -51,8 +51,8 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
     # Image sample parameters
     params["search_area_shape"] = 'square'    # The shape of the samples
     params["search_area_scale"] = 4.5         # The scaling of the target size to get the search area
-    params["min_image_sample_size"] = 200^2   # Minimum area of image samples
-    params["max_image_sample_size"] = 250^2   # Maximum area of image samples
+    params["min_image_sample_size"] = 200**2   # Minimum area of image samples
+    params["max_image_sample_size"] = 250**2   # Maximum area of image samples
 
     # Detection parameters
     params["refinement_iterations"] = 1       # Number of iterations used to refine the resulting position in a frame
@@ -60,7 +60,7 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
     params["clamp_position"] = False          # Clamp the target position to be inside the image
 
     # Learning parameters
-    params["output_sigma_factor"] = 1/12		# Label function sigma
+    params["output_sigma_factor"] = 1/12.0		# Label function sigma
     params["learning_rate"] = 0.009	 	 	# Learning rate
     params["nSamples"] = 50                   # Maximum number of stored training samples
     params["sample_replace_strategy"] = 'lowest_prior'    # Which sample to replace when the memory is full

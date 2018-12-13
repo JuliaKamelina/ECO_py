@@ -107,8 +107,8 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
                 features[i]["fparams"]["penalty"] = np.zeros((len(features[i]["fparams"]["nDim"]), 1))
         feature_info["min_cell_size"][i] = np.min(features[i]["fparams"]["cell_size"])
 
-    features = [x for _, x in sorted(zip(feature_info["min_cell_size"], features))]
-    feature_info["min_cell_size"].sort()
+    # features = [x for _, x in sorted(zip(feature_info["min_cell_size"], features))]
+    # feature_info["min_cell_size"].sort()
 
     feature_info["dim"] = []
     feature_info["penalty"] = []
@@ -194,11 +194,13 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
     for i in range(0, len(features)):
         if features[i]["is_cnn"]:
             features[i]["img_sample_sz"] = feature_info["img_sample_sz"]
-            feature_info["data_sz_block"].append(np.floor(cnn_output_sz/features[i]["fparams"]["downsample_factor"]))
+            feature_info["data_sz_block"].append(np.floor(cnn_output_sz/np.tile(features[i]["fparams"]["downsample_factor"], (2,1)).T))
         else:
             features[i]["img_sample_sz"] = feature_info["img_support_sz"]
             features[i]["img_input_sz"] = features[i]["img_sample_sz"]
             feature_info["data_sz_block"].append(np.floor(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"]))
-    feature_info["data_sz"] = feature_info["data_sz_block"] # np.array?
-    
+
+    # feature_info["data_sz"] = [item for sublist in feature_info["data_sz_block"] for item in sublist] # np.array?
+    feature_info["data_sz"] = feature_info["data_sz_block"]
+
     return(features, gparams, feature_info)

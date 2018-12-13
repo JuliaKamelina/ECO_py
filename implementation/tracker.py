@@ -102,9 +102,9 @@ def tracker(params):
     features, global_fparams, feature_info = init_features(features, global_fparams, is_color_image, img_sample_sz, 'odd_cells')
 
     # Set feature info
-    img_support_sz = np.array(feature_info["img_support_sz"])
-    feature_sz = np.array(feature_info["data_sz"])
-    feature_dim = np.array(feature_info["dim"])
+    img_support_sz = feature_info["img_support_sz"]
+    feature_sz = feature_info["data_sz"]
+    feature_dim = feature_info["dim"]
     num_feature_blocks = len(feature_dim)
 
     # Get feature specific parameters
@@ -118,21 +118,35 @@ def tracker(params):
 
     # Size of the extracted feature maps
     # TODO: Check
-    h, w = feature_sz.shape
-    feature_sz_cell = feature_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2).swapaxes(1,2).reshape(-1, num_feature_blocks, 2)
-    feature_sz_cell = np.moveaxis(feature_sz_cell, 0, -1)  #permute
-    print(feature_sz_cell)
+    feature_sz_cell = []
+    for item in feature_sz:
+        if len(item.shape) > 1:
+            for it in item:
+                feature_sz_cell.append(it)
+        else:
+            feature_sz_cell.append(item)
+    feature_sz_cell = np.array(feature_sz_cell)
+    # h, w = feature_sz.shape
+    # feature_sz_cell = feature_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2).swapaxes(1,2).reshape(-1, num_feature_blocks, 2)
+    # feature_sz_cell = np.moveaxis(feature_sz_cell, 0, -1)  #permute
+    # print(feature_sz_cell)
 
-    filter_sz = feature_sz + (feature_sz + 1) % 2
-    h, w = filter_sz.shape
-    filter_sz_cell = filter_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2).swapaxes(1,2).reshape(-1, num_feature_blocks, 2)
-    filter_sz_cell = np.moveaxis(filter_sz_cell, 0, -1)
+    # filter_sz = feature_sz + (feature_sz + 1) % 2
+    filter_sz_cell = []
+    for item in feature_sz:
+        if len(item.shape) > 1:
+            for it in item:
+                filter_sz_cell.append(it)
+        else:
+            filter_sz_cell.append(item)
+    filter_sz_cell = np.array(filter_sz_cell)
+    filter_sz_cell = filter_sz_cell + (filter_sz_cell + 1) % 2
+    # h, w = filter_sz.shape
+    # filter_sz_cell = filter_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2).swapaxes(1,2).reshape(-1, num_feature_blocks, 2)
+    # filter_sz_cell = np.moveaxis(filter_sz_cell, 0, -1)
 
-    if len(filter_sz.shape) > 1:
-        k = np.argmax(filter_sz, 1)[0]
-    else:
-        k = np.argmax(filter_sz)
-    output_sz = filter_sz[k]
+    k = np.argmax(filter_sz_cell)
+    output_sz = filter_sz_cell[k]
 
     block_inds = range(0, num_feature_blocks)
     block_inds[k] = []

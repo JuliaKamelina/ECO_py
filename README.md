@@ -10,3 +10,7 @@ feature_info.penalty_block
 
 feature_info["penalty"] == []
 feature_info["dim"] == np.array([])
+
+img_support_sz = []
+feature_sz = []
+feature_dim = []

@@ -104,7 +104,7 @@ def tracker(params):
     # Set feature info
     img_support_sz = feature_info["img_support_sz"]
     feature_sz = feature_info["data_sz"]
-    feature_dim = feature_info["dim"]
+    feature_dim = [item for sublist in feature_info["dim"] for item in sublist]
     num_feature_blocks = len(feature_dim)
 
     # Get feature specific parameters
@@ -146,13 +146,20 @@ def tracker(params):
     # filter_sz_cell = np.moveaxis(filter_sz_cell, 0, -1)
 
     k = np.argmax(filter_sz_cell)
-    output_sz = filter_sz_cell[k]
+    output_sz = filter_sz_cell[k]  # The size of the label function DFT
 
     block_inds = range(0, num_feature_blocks)
     block_inds[k] = []
 
+    #  How much each feature block has to be padded to the obtain output_sz
     pad_sz = []
     h = filter_sz_cell.shape[0]
     for i in range(0, h):
         pad_sz.append((output_sz - filter_sz_cell[i])/2)
     pad_sz = np.array(pad_sz)
+
+    #  Compute the Fourier series indices and their transposes
+    # ky = cellfun(@(sz) (-ceil((sz(1) - 1)/2) : floor((sz(1) - 1)/2))', filter_sz_cell, 'uniformoutput', false);
+    # kx = cellfun(@(sz) -ceil((sz(2) - 1)/2) : 0, filter_sz_cell, 'uniformoutput', false);
+
+    sig_y = np.sqrt(np.prod(np.floor(base_target_sz))) * params["output_sigma_factor"] * (output_sz / img_support_sz)  # Gaussian label

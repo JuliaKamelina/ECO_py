@@ -2,12 +2,15 @@ import numpy as np
 import cv2 as cv
 import math
 
+from scipy import signal
+
 from init_features import *
 from get_sequence_info import *
 from get_feature_extract_info import *
 
 from init_default_params import *
 from init_feature_params import *
+from get_interp_fourier import * 
 
 def tracker(params):
     #Get sequence info
@@ -159,7 +162,49 @@ def tracker(params):
     pad_sz = np.array(pad_sz)
 
     #  Compute the Fourier series indices and their transposes
-    # ky = cellfun(@(sz) (-ceil((sz(1) - 1)/2) : floor((sz(1) - 1)/2))', filter_sz_cell, 'uniformoutput', false);
-    # kx = cellfun(@(sz) -ceil((sz(2) - 1)/2) : 0, filter_sz_cell, 'uniformoutput', false);
+    kx = []
+    ky = []
+    for i in range(0, len(filter_sz_cell)):
+        val = np.ceil(filter_sz_cell[i][0] - 1)/2.0
+        ky.append(np.array(range(-1*int(val), int(val) + 1)))
+        kx.append(np.array(range(-1*int(val), 1)))
+    kx = np.array(kx)
+    ky = np.array(ky)
 
+    #Gaussian label function
     sig_y = np.sqrt(np.prod(np.floor(base_target_sz))) * params["output_sigma_factor"] * (output_sz / img_support_sz)  # Gaussian label
+    yf_y = []
+    yf_x = []
+    for i in range(0, len(kx)):
+        yf_y.append(np.sqrt(2*math.pi)*sig_y[0]/output_sz[0]*np.exp(-2*(math.pi*sig_y[0]*ky[i]/output_sz[0])**2))
+        yf_x.append(np.sqrt(2*math.pi)*sig_y[1]/output_sz[1]*np.exp(-2*(math.pi*sig_y[1]*kx[i]/output_sz[1])**2))
+    yf_x = np.array(yf_x)
+    yf_y = np.array(yf_y)
+    yf = []
+    for k in range(0, len(yf_y)):
+        yf_k = []
+        for i in range(0, len(yf_y[k])):
+            yf_k.append(yf_y[k][i]*yf_x[k])
+        yf.append(yf_k)
+    yf = np.array(yf)
+    
+    cos_window = []
+    for i in range(0, len(feature_sz_cell)):
+        cos_y = scipy.signal.hann(int(feature_sz_cell[i][0]+2))
+        cos_x = scipy.signal.hann(int(feature_sz_cell[i][1]+2))
+        cos_x = cos_x.reshape(len(cos_x), 1)
+        cos_window.append(cos_y*cos_x)
+    cos_window = np.array(cos_window)
+    for i in range(0, len(cos_window)):
+        cos_window[i] = cos_window[i][1:-1,1:-1]
+    print(cos_window)
+
+    #Fourier for interpolation func
+    interp1_fs = []
+    interp2_fs = []
+    for i in range(0, len(filter_sz_cell)):
+        (interp1, interp2) = get_interp_fourier(filter_sz_cell[i], params)
+        interp1_fs.append(interp1)
+        interp2_fs.append(interp2)
+    interp1_fs = np.array(interp1_fs)
+    interp2_fs = np.array(interp2_fs)

@@ -10,7 +10,8 @@ from get_feature_extract_info import *
 
 from init_default_params import *
 from init_feature_params import *
-from get_interp_fourier import * 
+from get_interp_fourier import *
+from get_reg_filter import *
 
 def tracker(params):
     #Get sequence info
@@ -197,7 +198,6 @@ def tracker(params):
     cos_window = np.array(cos_window)
     for i in range(0, len(cos_window)):
         cos_window[i] = cos_window[i][1:-1,1:-1]
-    print(cos_window)
 
     #Fourier for interpolation func
     interp1_fs = []
@@ -208,3 +208,14 @@ def tracker(params):
         interp2_fs.append(interp2)
     interp1_fs = np.array(interp1_fs)
     interp2_fs = np.array(interp2_fs)
+
+    reg_window_edge = np.array([])
+    shape = 0
+    for i in range(0, len(features)):
+        shape += len(features[i]["fparams"]["nDim"])
+    reg_window_edge = reg_window_edge.reshape((shape, 0))
+
+    reg_filter = []
+    for i in range(0, len(reg_window_edge)):
+        reg_filter.append(get_reg_filter(img_support_sz, base_target_sz, params, reg_window_edge[i]))
+    reg_filter = np.array(reg_filter)

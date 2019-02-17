@@ -219,3 +219,20 @@ def tracker(params):
     for i in range(0, len(reg_window_edge)):
         reg_filter.append(get_reg_filter(img_support_sz, base_target_sz, params, reg_window_edge[i]))
     reg_filter = np.array(reg_filter)
+
+    reg_energy = [np.real(np.vdot(reg_filter.flatten(), reg_filter.flatten()))
+                    for reg_filter in reg_filter]
+    print(reg_energy)
+
+    if params["use_scale_filter"]:
+        print("Ops")
+    else:
+        nScales = params["number_of_scales"]
+        scale_step = params["scale_step"]
+        scale_exp = np.arange(-np.floor((nScales-1)/2), np.ceil((nScales-1)/2))
+        scaleFactors = scale_step**scale_exp
+    
+    if nScales > 0:
+            # force reasonable scale changes
+            min_scale_factor = scale_step ** np.ceil(np.log(np.max(5 / img_support_sz)) / np.log(scale_step))
+            max_scale_factor = scale_step ** np.floor(np.log(np.min(im.shape[:2] / base_target_sz)) / np.log(scale_step))

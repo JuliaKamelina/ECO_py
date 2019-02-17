@@ -18,4 +18,15 @@ def get_reg_filter(sz, target_sz, params, reg_window_edge):
                      params["reg_window_min"]
         
         reg_window_dft = np.fft.fft(np.fft.fft(reg_window, axis=1), axis=0).astype(np.complex64) / np.prod(sz)
+        reg_window_dft[np.abs(reg_window_dft) < params["reg_sparsity_threshold"] * np.max(np.abs(reg_window_dft.flatten()))] = 0
+
+        reg_window_sparse = np.real(np.fft.ifft(np.fft.ifft(reg_window_dft, axis=1), axis=0).astype(np.complex64))
+        reg_window_dft[0, 0] = reg_window_dft[0, 0] - np.prod(sz) * np.min(reg_window_sparse.flatten()) + params["reg_window_min"]
+        reg_window_dft = np.fft.fftshift(reg_window_dft).astype(np.complex64)
+
+        row_idx = np.logical_not(np.all(reg_window_dft==0, axis=1))
+        col_idx = np.logical_not(np.all(reg_window_dft==0, axis=0))
+        mask = np.outer(row_idx, col_idx)
+        reg_filter = np.real(reg_window_dft[mask]).reshape(np.sum(row_idx), -1)
         
+        return(reg_filter.T)

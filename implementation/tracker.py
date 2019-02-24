@@ -1,6 +1,7 @@
 import numpy as np
 import cv2 as cv
 import math
+import time
 
 from scipy import signal
 
@@ -50,7 +51,6 @@ def tracker(params):
     #Global feature params
     if "t_global" in params.keys():
         global_fparams = params["t_global"]
-        print global_fparams
     else:
         global_fparams = {}
     global_fparams["use_gpu"] = params["use_gpu"]
@@ -117,6 +117,7 @@ def tracker(params):
 
     if params["use_projection_matrix"]:
         sample_dim = feature_params["compressed_dim"]
+        sample_dim = np.concatenate((sample_dim[0][0].reshape(2,), np.array(sample_dim[1])))
     else:
         sample_dim = feature_dim
 
@@ -135,7 +136,7 @@ def tracker(params):
     # feature_sz_cell = np.moveaxis(feature_sz_cell, 0, -1)  #permute
     # print(feature_sz_cell)
 
-    # filter_sz = feature_sz + (feature_sz + 1) % 2
+    # filter_sz = np.array(feature_sz) + (np.array(feature_sz) + 1) % 2
     filter_sz_cell = []
     for item in feature_sz:
         if len(item.shape) > 1:
@@ -145,6 +146,7 @@ def tracker(params):
             filter_sz_cell.append(item)
     filter_sz_cell = np.array(filter_sz_cell)
     filter_sz_cell = filter_sz_cell + (filter_sz_cell + 1) % 2
+    filter_sz = filter_sz_cell
     # h, w = filter_sz.shape
     # filter_sz_cell = filter_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2).swapaxes(1,2).reshape(-1, num_feature_blocks, 2)
     # filter_sz_cell = np.moveaxis(filter_sz_cell, 0, -1)
@@ -222,7 +224,6 @@ def tracker(params):
 
     reg_energy = [np.real(np.vdot(reg_filter.flatten(), reg_filter.flatten()))
                     for reg_filter in reg_filter]
-    print(reg_energy)
 
     if params["use_scale_filter"]:
         print("Ops")
@@ -233,6 +234,61 @@ def tracker(params):
         scaleFactors = scale_step**scale_exp
     
     if nScales > 0:
-            # force reasonable scale changes
-            min_scale_factor = scale_step ** np.ceil(np.log(np.max(5 / img_support_sz)) / np.log(scale_step))
-            max_scale_factor = scale_step ** np.floor(np.log(np.min(im.shape[:2] / base_target_sz)) / np.log(scale_step))
+        # force reasonable scale changes
+        min_scale_factor = scale_step ** np.ceil(np.log(np.max(5 / img_support_sz)) / np.log(scale_step))
+        max_scale_factor = scale_step ** np.floor(np.log(np.min(im.shape[:2] / base_target_sz)) / np.log(scale_step))
+
+    init_CG_opts = {
+        "CG_use_FR": True,
+        "tol": 1e-6,
+        "CG_standard_alpha": True,
+        "debug": params["debug"]
+    }
+    CG_opts = {
+        "CG_use_FR": params["CG_use_FR"],
+        "tol": 1e-6,
+        "CG_standard_alpha": params["CG_standard_alpha"],
+        "debug": params["debug"]
+    }
+    if params["CG_forgetting_rate"] == np.inf or params["learning_rate"] >= 1:
+        CG_opts["init_forget_factor"] = 0
+    else:
+        CG_opts["init_forget_factor"] = (1-params["learning_rate"])**params["CG_forgetting_rate"]
+
+    #init and alloc
+    prior_weights = np.zeros((params["nSamples"],1), dtype=np.float32)
+    sample_weights = prior_weights
+    samplesf = [[]] * num_feature_blocks
+    for i in range(num_feature_blocks):
+        samplesf[i] = np.zeros((int(filter_sz[i, 0]), int((filter_sz[i, 1]+1)/2),
+                      sample_dim[i], params["nSamples"]), dtype=np.complex64)
+    
+    scores_fs_feat = [[]] * num_feature_blocks
+
+    distance_matrix = np.ones((params["nSamples"], params["nSamples"]), dtype=np.float32) * np.inf  # stores the square of the euclidean distance between each pair of samples
+    gram_matrix = np.ones((params["nSamples"], params["nSamples"]), dtype=np.float32) * np.inf  # Kernel matrix, used to update distance matrix
+
+    latest_ind = []
+    frames_since_last_train = np.inf
+    num_training_samples = 0
+
+    minimum_sample_weight = params["learning_rate"] * (1 - params["learning_rate"])**(2*params["nSamples"])
+    res_norms = []
+    residuals_pcg = []
+
+    while True:
+        if seq["frame"] > 0:
+            if seq["frame"] >= seq["num_frames"]:
+                im = []
+                break
+            else:
+                im = cv.imread(seq["image_files"][seq["frame"]])
+            seq["frame"] += 1
+        else:
+            seq["frame"] = 0
+        tic = time.clock()
+
+        if seq["frame"] == 0:
+            sample_pos = np.round(pos)
+            sample_scale = currentScaleFactor
+            

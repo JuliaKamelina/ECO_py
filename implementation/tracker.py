@@ -102,7 +102,6 @@ def tracker(params):
     if params["search_area_shape"] == 'custom':
         img_sample_sz = np.array((base_target_sz[0]*2, base_target_sz[1]*2), float)
 
-    # TODO:
     features, global_fparams, feature_info = init_features(features, global_fparams, is_color_image, img_sample_sz, 'odd_cells')
 
     # Set feature info

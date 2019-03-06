@@ -39,14 +39,14 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
     feature_info['min_cell_size'] = np.zeros((num_features, 1))
 
     for i in range(0,len(features)):
-        if 'get_fhog' in features[i].keys():
+        if features[i]['name'] == 'get_fhog':
             if not 'nOrients' in features[i]["fparams"].keys():
                 features[i]["fparams"]["nOrients"] = 9
             features[i]["fparams"]["nDim"] = np.array([3*features[i]["fparams"]["nOrients"] + 5 - 1])
             features[i]["is_cell"] = False
             features[i]["is_cnn"] = False
 
-        elif 'get_table_feature' in features[i].keys():
+        elif features[i]['name'] == 'get_table_feature':
             cur_path = os.path.dirname(os.path.abspath(__file__))
             load_path = cur_path + '/lookup_tables' + features[i]["fparams"]["tablename"]
             table = scipy.io.loadmat(load_path)
@@ -54,12 +54,12 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
             features[i]["is_cell"] = False
             features[i]["ic_cnn"] = False
 
-        elif 'get_colorspace' in features[i].keys():
+        elif features[i]['name'] == 'get_colorspace':
             features[i]["fparams"]["nDim"] = 1
             features[i]["is_cell"] = False
             features[i]["is_cnn"] = False
 
-        elif 'get_cnn_layers' in features[i].keys() or 'get_OFcnn_layers' in features[i].keys():
+        elif features[i]['name'] == 'get_cnn_layers' or features[i]['name'] == 'get_OFcnn_layers':
             features[i]["fparams"]["output_layer"].sort()
             if not 'input_size_mode' in features[i]["fparams"].keys():
                 features[i]["fparams"]["input_size_mode"] = 'adaptive'

@@ -121,7 +121,7 @@ def tracker(params):
         sample_dim = feature_dim
 
     # Size of the extracted feature maps
-    # TODO: Check
+    # TODO: Checks
     feature_sz_cell = []
     for item in feature_sz:
         if len(item.shape) > 1:
@@ -130,44 +130,35 @@ def tracker(params):
         else:
             feature_sz_cell.append(item)
     feature_sz_cell = np.array(feature_sz_cell)
-    # h, w = feature_sz.shape
-    # feature_sz_cell = feature_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2).swapaxes(1,2).reshape(-1, num_feature_blocks, 2)
-    # feature_sz_cell = np.moveaxis(feature_sz_cell, 0, -1)  #permute
-    # print(feature_sz_cell)
 
-    # filter_sz = np.array(feature_sz) + (np.array(feature_sz) + 1) % 2
-    filter_sz_cell = []
+    filter_sz = []
     for item in feature_sz:
         if len(item.shape) > 1:
             for it in item:
-                filter_sz_cell.append(it)
+                filter_sz.append(it)
         else:
-            filter_sz_cell.append(item)
-    filter_sz_cell = np.array(filter_sz_cell)
-    filter_sz_cell = filter_sz_cell + (filter_sz_cell + 1) % 2
-    filter_sz = filter_sz_cell
-    # h, w = filter_sz.shape
-    # filter_sz_cell = filter_sz.reshape(h//num_feature_blocks, num_feature_blocks, -1, 2).swapaxes(1,2).reshape(-1, num_feature_blocks, 2)
-    # filter_sz_cell = np.moveaxis(filter_sz_cell, 0, -1)
+            filter_sz.append(item)
+    filter_sz = np.array(filter_sz)
+    filter_sz = filter_sz + (filter_sz + 1) % 2
 
-    k = np.argmax(filter_sz_cell)
-    output_sz = filter_sz_cell[k]  # The size of the label function DFT
+    k = np.argmax(filter_sz)
+    output_sz = filter_sz[k]  # The size of the label function DFT
 
     block_inds = range(0, num_feature_blocks)
     block_inds[k] = []
 
     #  How much each feature block has to be padded to the obtain output_sz
     pad_sz = []
-    h = filter_sz_cell.shape[0]
+    h = filter_sz.shape[0]
     for i in range(0, h):
-        pad_sz.append((output_sz - filter_sz_cell[i])/2)
+        pad_sz.append((output_sz - filter_sz[i])/2)
     pad_sz = np.array(pad_sz)
 
     #  Compute the Fourier series indices and their transposes
     kx = []
     ky = []
-    for i in range(0, len(filter_sz_cell)):
-        val = np.ceil(filter_sz_cell[i][0] - 1)/2.0
+    for i in range(0, len(filter_sz)):
+        val = np.ceil(filter_sz[i][0] - 1)/2.0
         ky.append(np.array(range(-1*int(val), int(val) + 1)))
         kx.append(np.array(range(-1*int(val), 1)))
     kx = np.array(kx)
@@ -203,8 +194,8 @@ def tracker(params):
     #Fourier for interpolation func
     interp1_fs = []
     interp2_fs = []
-    for i in range(0, len(filter_sz_cell)):
-        (interp1, interp2) = get_interp_fourier(filter_sz_cell[i], params)
+    for i in range(0, len(filter_sz)):
+        (interp1, interp2) = get_interp_fourier(filter_sz[i], params)
         interp1_fs.append(interp1)
         interp2_fs.append(interp2)
     interp1_fs = np.array(interp1_fs)

@@ -20,7 +20,7 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
     # ic_params["compressed_dim = 3;
 
     cnn_params = {}
-    cnn_params["nn_name"] = 'imagenet-vgg-m-2048.mat'
+    cnn_params["nn_name"] = 'vgg16'
     cnn_params["output_layer"] = np.array([3, 14])               # Which layers to use
     cnn_params["downsample_factor"] = np.array([2, 1])           # How much to downsample each output layer
     cnn_params["compressed_dim"] = np.array([16, 64])            # Compressed dimensionality of each output layer

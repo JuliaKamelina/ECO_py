@@ -102,43 +102,49 @@ def tracker(params):
     if params["search_area_shape"] == 'custom':
         img_sample_sz = np.array((base_target_sz[0]*2, base_target_sz[1]*2), float)
 
-    features, global_fparams, feature_info = init_features(features, global_fparams, is_color_image, img_sample_sz, 'odd_cells')
+    features, global_fparams = init_features(features, global_fparams, is_color_image, img_sample_sz, 'odd_cells')
 
     # Set feature info
-    img_support_sz = feature_info["img_support_sz"]
-    feature_sz = feature_info["data_sz"]
-    feature_dim = [item for sublist in feature_info["dim"] for item in sublist]
+    img_support_sz = features[0]["img_sample_sz"]
+    feature_sz = []
+    for i in range(0, len(features)):
+        if len(features[i]["data_sz"].shape) > 1:
+            for item in features[i]["data_sz"]:
+                feature_sz.append(item)
+        else:
+            feature_sz.append(features[i]["data_sz"])
+    feature_dim = [item for i in range(0, len(features)) for item in features[i]["fparams"]["nDim"]]
     num_feature_blocks = len(feature_dim)
 
     # Get feature specific parameters
-    feature_params = init_feature_params(features, feature_info)
-    feature_extract_info = get_feature_extract_info(features)
+    # feature_params = init_feature_params(features, feature_info)
+    # feature_extract_info = get_feature_extract_info(features) TODO: CHECK
 
     if params["use_projection_matrix"]:
-        sample_dim = feature_params["compressed_dim"]
-        sample_dim = np.concatenate((sample_dim[0][0].reshape(2,), np.array(sample_dim[1])))
+        sample_dim = [features[i]["fparams"]["compressed_dim"] for i in range(0, len(features))]
+        sample_dim = np.concatenate((sample_dim[0], np.array(sample_dim[1]).reshape(1,)))
     else:
         sample_dim = feature_dim
 
     # Size of the extracted feature maps
     # TODO: Checks
     feature_sz_cell = []
-    for item in feature_sz:
-        if len(item.shape) > 1:
-            for it in item:
-                feature_sz_cell.append(it)
-        else:
-            feature_sz_cell.append(item)
-    feature_sz_cell = np.array(feature_sz_cell)
+    # for item in feature_sz:
+    #     if len(item.shape) > 1:
+    #         for it in item:
+    #             feature_sz_cell.append(it)
+    #     else:
+    #         feature_sz_cell.append(item)
+    feature_sz_cell = np.array(feature_sz)
 
     filter_sz = []
-    for item in feature_sz:
-        if len(item.shape) > 1:
-            for it in item:
-                filter_sz.append(it)
-        else:
-            filter_sz.append(item)
-    filter_sz = np.array(filter_sz)
+    # for item in feature_sz:
+    #     if len(item.shape) > 1:
+    #         for it in item:
+    #             filter_sz.append(it)
+    #     else:
+    #         filter_sz.append(item)
+    filter_sz = feature_sz_cell
     filter_sz = filter_sz + (filter_sz + 1) % 2
 
     k = np.argmax(filter_sz)

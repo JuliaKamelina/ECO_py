@@ -31,10 +31,10 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
     params = {}
     params["t_features"] = [
         {'name': 'get_cnn_layers',
-        'feature': (lambda im, fparams, gparams: get_cnn_layers(im, fparams, gparams)),
+        'feature': (lambda im, fparams, gparams, pos, sample_sz, scale_factor: get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor)),
         'fparams': cnn_params},
         {'name': 'get_fhog',
-        'feature': (lambda im, fparams, gparam: get_fhog(im, fparams, gparam)),
+        'feature': (lambda im, fparams, gparam, pos, sample_sz, scales: get_fhog(im, fparams, gparam, pos, sample_sz, scales)),
         'fparams': hog_params}
         # {'get_colorspace': (lambda im, fparams, gparam: get_colorspace(im, fparams, gparam)),
         # 'fparams': grayscale_params},

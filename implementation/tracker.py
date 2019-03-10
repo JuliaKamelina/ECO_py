@@ -10,7 +10,7 @@ from get_sequence_info import *
 from get_feature_extract_info import *
 
 from init_default_params import *
-from init_feature_params import *
+# from init_feature_params import *
 from get_interp_fourier import *
 from get_reg_filter import *
 

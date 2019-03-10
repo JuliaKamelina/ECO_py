@@ -5,6 +5,8 @@ import cv2 as cv
 from mxnet.gluon.model_zoo import vision
 from mxnet.gluon.nn import AvgPool2D
 
+from . import py_gradient
+
 def feature_normalization(x, gparams):
     if ('normalize_power' in gparams.keys()) and gparams["normalize_power"] > 0:
         if gparams["normalize_power"] == 2:
@@ -80,8 +82,8 @@ def forvard_pass(x):
 
 def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
     compressed_dim = fparams["compressed_dim"] # TODO: check
-    cell_size = [4, 16]
-    penalty = [0., 0.]
+    cell_size = fparams["cell_size"]
+    penalty = fparams["penalty"]
     min_cell_size = np.min(cell_size)
 
     if im.shape[2] == 1:
@@ -101,3 +103,19 @@ def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
     f1 = feature_normalization(f1)
     f2 = feature_normalization(f2)
     return f1, f2
+
+    def get_fhog(img, fparams, gparam, pos, sample_sz, scales):
+        feat = []
+        if not isinstance(scales, list) and not isinstance(scales, np.ndarray):
+            scales = [scales]
+        for scale in scales:
+            patch = get_sample(img, pos, sample_sz*scale, sample_sz)
+            # h, w, c = patch.shape
+            M, O = py_gradient.gradMag(patch.astype(np.float32), 0, True)
+            H = py_gradient.fhog(M, O, fparams["cell_size"], fparams["nOrients"], -1, .2)
+            # drop the last dimension
+            H = H[:, :, :-1]
+            feat.append(H)
+        feat = feature_normalization(np.stack(feat, axis=3), gparams)
+        return [feat]
+    }

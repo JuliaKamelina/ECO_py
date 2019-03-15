@@ -2,6 +2,7 @@ import numpy as np
 import cv2 as cv
 import math
 import time
+import sys
 
 from scipy import signal
 
@@ -13,6 +14,7 @@ from init_default_params import *
 # from init_feature_params import *
 from get_interp_fourier import *
 from get_reg_filter import *
+from features import get_cnn_feature, get_fhog
 
 def tracker(params):
     #Get sequence info
@@ -287,4 +289,5 @@ def tracker(params):
         if seq["frame"] == 0:
             sample_pos = np.round(pos)
             sample_scale = currentScaleFactor
-            
+            xl = [x for i in len(features) for x in features[i]["feature"](im, features, global_fparams, sample_pos, currentScaleFactor)]
+            print(xl)

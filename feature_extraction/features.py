@@ -4,7 +4,6 @@ import cv2 as cv
 
 from mxnet.gluon.model_zoo import vision
 from mxnet.gluon.nn import AvgPool2D
-
 from . import py_gradient
 
 def feature_normalization(x, gparams):
@@ -104,11 +103,11 @@ def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
     f2 = feature_normalization(f2)
     return f1, f2
 
-    def get_fhog(img, fparams, gparam, pos, sample_sz, scales):
+    def get_fhog(img, fparams, gparams, pos, sample_sz, scale_factor):
         feat = []
-        if not isinstance(scales, list) and not isinstance(scales, np.ndarray):
-            scales = [scales]
-        for scale in scales:
+        if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
+            scale_factor = [scale_factor]
+        for scale in scale_factor:
             patch = get_sample(img, pos, sample_sz*scale, sample_sz)
             # h, w, c = patch.shape
             M, O = py_gradient.gradMag(patch.astype(np.float32), 0, True)
@@ -118,4 +117,3 @@ def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
             feat.append(H)
         feat = feature_normalization(np.stack(feat, axis=3), gparams)
         return [feat]
-    }

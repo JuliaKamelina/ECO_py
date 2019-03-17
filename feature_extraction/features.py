@@ -4,7 +4,7 @@ import cv2 as cv
 
 from mxnet.gluon.model_zoo import vision
 from mxnet.gluon.nn import AvgPool2D
-from . import py_gradient
+from _gradient import *
 
 def feature_normalization(x, gparams):
     if ('normalize_power' in gparams.keys()) and gparams["normalize_power"] > 0:
@@ -32,19 +32,19 @@ def get_sample(im, pos, img_sample_sz, output_sz):
     if x.min() < 0:
         left = int(abs(x.min()))
     if x.max() > im.shape[1]:
-        right = int(xs.max() - im.shape[1])
+        right = int(x.max() - im.shape[1])
     if y.min() < 0:
         top = int(abs(y.min()))
     if y.max() > im.shape[0]:
         down = int(y.max() - im.shape[0])
     if left != 0 or right != 0 or top != 0 or down != 0:
-        im_patch = cv2.copyMakeBorder(im_patch, top, down, left, right, cv2.BORDER_REPLICATE)
-    im_patch = cv2.resize(im_patch, (int(output_sz[0]), int(output_sz[1])), cv2.INTER_CUBIC)
+        im_patch = cv.copyMakeBorder(im_patch, top, down, left, right, cv.BORDER_REPLICATE)
+    im_patch = cv.resize(im_patch, (int(output_sz[0]), int(output_sz[1])), cv.INTER_CUBIC)
     if len(im_patch.shape) == 2:
         im_patch = im_patch[:, :, np.newaxis]
     return im_patch
 
-def forvard_pass(x):
+def forward_pass(x):
     vgg16 = vision.vgg16(pretrained=True)
     avg_pool2d = AvgPool2D()
 
@@ -86,7 +86,7 @@ def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
     min_cell_size = np.min(cell_size)
 
     if im.shape[2] == 1:
-        im = cv2.cvtColor(im.squeeze(), cv2.COLOR_GRAY2RGB)
+        im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
     if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
         scale_factor = [scale_factor]
     patches = []
@@ -99,21 +99,21 @@ def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
     patches.append(normalized)
     patches = mx.nd.concat(*patches, dim=0)
     f1, f2 = forward_pass(patches)
-    f1 = feature_normalization(f1)
-    f2 = feature_normalization(f2)
+    f1 = feature_normalization(f1, gparams)
+    f2 = feature_normalization(f2, gparams)
     return f1, f2
 
-    def get_fhog(img, fparams, gparams, pos, sample_sz, scale_factor):
-        feat = []
-        if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
-            scale_factor = [scale_factor]
-        for scale in scale_factor:
-            patch = get_sample(img, pos, sample_sz*scale, sample_sz)
-            # h, w, c = patch.shape
-            M, O = py_gradient.gradMag(patch.astype(np.float32), 0, True)
-            H = py_gradient.fhog(M, O, fparams["cell_size"], fparams["nOrients"], -1, .2)
-            # drop the last dimension
-            H = H[:, :, :-1]
-            feat.append(H)
-        feat = feature_normalization(np.stack(feat, axis=3), gparams)
-        return [feat]
+def get_fhog(img, fparams, gparams, pos, sample_sz, scale_factor):
+    feat = []
+    if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
+        scale_factor = [scale_factor]
+    for scale in scale_factor:
+        patch = get_sample(img, pos, sample_sz*scale, sample_sz)
+        # h, w, c = patch.shape
+        M, O = gradMag(patch.astype(np.float32), 0, True)
+        H = fhog(M, O, fparams["cell_size"], fparams["nOrients"], -1, .2)
+        # drop the last dimension
+        H = H[:, :, :-1]
+        feat.append(H)
+    feat = feature_normalization(np.stack(feat, axis=3), gparams)
+    return [feat]

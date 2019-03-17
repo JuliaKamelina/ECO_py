@@ -10,11 +10,13 @@ from init_features import *
 from get_sequence_info import *
 from get_feature_extract_info import *
 
-from init_default_params import *
-# from init_feature_params import *
-from get_interp_fourier import *
-from get_reg_filter import *
-from features import get_cnn_feature, get_fhog
+from initialization.init_default_params import *
+from initialization.get_interp_fourier import *
+from initialization.get_reg_filter import *
+
+from features import get_cnn_layers, get_fhog
+from fourier_tools import *
+from dim_reduction import *
 
 def tracker(params):
     #Get sequence info
@@ -131,29 +133,17 @@ def tracker(params):
     # Size of the extracted feature maps
     # TODO: Checks
     feature_sz_cell = []
-    # for item in feature_sz:
-    #     if len(item.shape) > 1:
-    #         for it in item:
-    #             feature_sz_cell.append(it)
-    #     else:
-    #         feature_sz_cell.append(item)
     feature_sz_cell = np.array(feature_sz)
 
     filter_sz = []
-    # for item in feature_sz:
-    #     if len(item.shape) > 1:
-    #         for it in item:
-    #             filter_sz.append(it)
-    #     else:
-    #         filter_sz.append(item)
     filter_sz = feature_sz_cell
     filter_sz = filter_sz + (filter_sz + 1) % 2
 
     k = np.argmax(filter_sz)
     output_sz = filter_sz[k]  # The size of the label function DFT
 
-    block_inds = range(0, num_feature_blocks)
-    block_inds[k] = []
+    # block_inds = np.arange(0, num_feature_blocks)
+    # block_inds[k] = []
 
     #  How much each feature block has to be padded to the obtain output_sz
     pad_sz = []
@@ -167,8 +157,8 @@ def tracker(params):
     ky = []
     for i in range(0, len(filter_sz)):
         val = np.ceil(filter_sz[i][0] - 1)/2.0
-        ky.append(np.array(range(-1*int(val), int(val) + 1)))
-        kx.append(np.array(range(-1*int(val), 1)))
+        ky.append(np.arange(-1*int(val), int(val) + 1))
+        kx.append(np.arange(-1*int(val), 1))
     kx = np.array(kx)
     ky = np.array(ky)
 
@@ -198,14 +188,15 @@ def tracker(params):
     cos_window = np.array(cos_window)
     for i in range(0, len(cos_window)):
         cos_window[i] = cos_window[i][1:-1,1:-1]
+        cos_window[i] = cos_window[i].reshape(cos_window[i].shape[0], cos_window[i].shape[1], 1, 1)
 
     #Fourier for interpolation func
     interp1_fs = []
     interp2_fs = []
     for i in range(0, len(filter_sz)):
-        (interp1, interp2) = get_interp_fourier(filter_sz[i], params)
-        interp1_fs.append(interp1)
-        interp2_fs.append(interp2)
+        interp1, interp2 = get_interp_fourier(filter_sz[i], params)
+        interp1_fs.append(interp1.reshape(interp1.shape[0], 1, 1, 1))
+        interp2_fs.append(interp2.reshape(interp2.shape[0], 1, 1, 1))
     interp1_fs = np.array(interp1_fs)
     interp2_fs = np.array(interp2_fs)
 
@@ -289,5 +280,17 @@ def tracker(params):
         if seq["frame"] == 0:
             sample_pos = np.round(pos)
             sample_scale = currentScaleFactor
-            xl = [x for i in len(features) for x in features[i]["feature"](im, features, global_fparams, sample_pos, currentScaleFactor)]
-            print(xl)
+            xl = [x for i in range(0, len(features))
+                    for x in features[i]["feature"](im, features[i]["fparams"], global_fparams, sample_pos, features[i]['img_sample_sz'], currentScaleFactor)]
+            # print(xl)
+
+            xlw = [x * y for x, y in zip(xl, cos_window)]      # do windowing of feature
+            xlf = [cfft2(x) for x in xlw]                      # compute the fourier series
+            xlf = interpolate_dft(xlf, interp1_fs, interp2_fs) # interpolate features
+            xlf = compact_fourier_coeff(xlf)                   # new sample to add
+            # shift sample
+            shift_samp = 2 * np.pi * (pos - sample_pos) / (sample_scale * img_support_sz) # img_sample_sz
+            xlf = shift_sample(xlf, shift_samp, kx, ky)
+            proj_matrix = init_projection_matrix(xl, sample_dim, params['proj_init_method'])  # init projection matrix
+            xlf_proj = project_sample(xlf, proj_matrix)  # project sample
+            print(xlf_proj)

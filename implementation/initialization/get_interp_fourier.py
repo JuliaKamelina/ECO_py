@@ -1,5 +1,5 @@
 import numpy as np
-from cubic_spline_fourier import *
+from initialization.cubic_spline_fourier import *
 
 def get_interp_fourier(sz, params):
     if (params["interpolation_method"] == 'bicubic'):

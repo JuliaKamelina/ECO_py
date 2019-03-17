@@ -1,7 +1,7 @@
 from distutils.core import setup, Extension
 from numpy.distutils import misc_util
 
-c_ext = Extension("py_gradient", ["py_gradient.cpp", "gradient.cpp"])
+c_ext = Extension("_gradient", ["_gradient.cpp", "gradient.cpp"])
 
 setup(
     ext_modules=[c_ext],

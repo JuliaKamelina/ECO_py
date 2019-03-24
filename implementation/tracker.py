@@ -17,6 +17,7 @@ from initialization.get_reg_filter import *
 from features import get_cnn_layers, get_fhog
 from fourier_tools import *
 from dim_reduction import *
+from sample_space_model import update_sample_space_model
 
 def tracker(params):
     #Get sequence info
@@ -293,4 +294,7 @@ def tracker(params):
             xlf = shift_sample(xlf, shift_samp, kx, ky)
             proj_matrix = init_projection_matrix(xl, sample_dim, params['proj_init_method'])  # init projection matrix
             xlf_proj = project_sample(xlf, proj_matrix)  # project sample
-            print(xlf_proj)
+
+            merged_sample, new_sample, merged_sample_id, new_sample_id = update_sample_space_model(samplesf, xlf_proj, num_training_samples, 
+                                                                                                    distance_matrix, gram_matrix, prior_weights, params)
+            num_training_samples += 1

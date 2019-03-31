@@ -18,6 +18,7 @@ from features import get_cnn_layers, get_fhog
 from fourier_tools import *
 from dim_reduction import *
 from sample_space_model import update_sample_space_model
+from train import train_joint
 
 def tracker(params):
     #Get sequence info
@@ -154,31 +155,31 @@ def tracker(params):
     pad_sz = np.array(pad_sz)
 
     #  Compute the Fourier series indices and their transposes
-    kx = []
-    ky = []
-    for i in range(0, len(filter_sz)):
-        val = np.ceil(filter_sz[i][0] - 1)/2.0
-        ky.append(np.arange(-1*int(val), int(val) + 1))
-        kx.append(np.arange(-1*int(val), 1))
-    kx = np.array(kx)
-    ky = np.array(ky)
+    kx = [np.arange(-1*int(np.ceil(sz[0] - 1)/2.0), 1) for sz in filter_sz]
+    ky = [np.arange(-1*int(np.ceil(sz[0] - 1)/2.0), int(np.ceil(sz[0] - 1)/2.0) + 1) for sz in filter_sz]
+    # for i in range(0, len(filter_sz)):
+    #     val = np.ceil(filter_sz[i][0] - 1)/2.0
+    #     ky.append(np.arange(-1*int(val), int(val) + 1))
+    #     kx.append(np.arange(-1*int(val), 1))
+    # kx = np.array(kx)
+    # ky = np.array(ky)
 
     #Gaussian label function
     sig_y = np.sqrt(np.prod(np.floor(base_target_sz))) * params["output_sigma_factor"] * (output_sz / img_support_sz)  # Gaussian label
-    yf_y = []
-    yf_x = []
-    for i in range(0, len(kx)):
-        yf_y.append(np.sqrt(2*math.pi)*sig_y[0]/output_sz[0]*np.exp(-2*(math.pi*sig_y[0]*ky[i]/output_sz[0])**2))
-        yf_x.append(np.sqrt(2*math.pi)*sig_y[1]/output_sz[1]*np.exp(-2*(math.pi*sig_y[1]*kx[i]/output_sz[1])**2))
-    yf_x = np.array(yf_x)
-    yf_y = np.array(yf_y)
-    yf = []
-    for k in range(0, len(yf_y)):
-        yf_k = []
-        for i in range(0, len(yf_y[k])):
-            yf_k.append(yf_y[k][i]*yf_x[k])
-        yf.append(yf_k)
-    yf = np.array(yf)
+    yf_y = [np.sqrt(2*math.pi)*sig_y[0]/output_sz[0]*np.exp(-2*(math.pi*sig_y[0]*y/output_sz[0])**2) for y in ky]
+    yf_x = [np.sqrt(2*math.pi)*sig_y[1]/output_sz[1]*np.exp(-2*(math.pi*sig_y[1]*x/output_sz[1])**2) for x in kx]
+    # for i in range(0, len(kx)):
+    #     yf_y.append(np.sqrt(2*math.pi)*sig_y[0]/output_sz[0]*np.exp(-2*(math.pi*sig_y[0]*ky[i]/output_sz[0])**2))
+    #     yf_x.append(np.sqrt(2*math.pi)*sig_y[1]/output_sz[1]*np.exp(-2*(math.pi*sig_y[1]*kx[i]/output_sz[1])**2))
+    # yf_x = np.array(yf_x)
+    # yf_y = np.array(yf_y)
+    yf = [y.reshape(-1, 1)*x for y, x in zip(yf_y, yf_x)]
+    # for k in range(0, len(yf_y)):
+    #     yf_k = []
+    #     for i in range(0, len(yf_y[k])):
+    #         yf_k.append(yf_y[k][i]*yf_x[k])
+    #     yf.append(yf_k)
+    # yf = np.array(yf)
     
     cos_window = []
     for i in range(0, len(feature_sz_cell)):
@@ -217,6 +218,7 @@ def tracker(params):
 
     if params["use_scale_filter"]:
         print("Ops")
+        raise NotImplementedError
     else:
         nScales = params["number_of_scales"]
         scale_step = params["scale_step"]
@@ -298,3 +300,45 @@ def tracker(params):
             merged_sample, new_sample, merged_sample_id, new_sample_id = update_sample_space_model(samplesf, xlf_proj, num_training_samples, 
                                                                                                     distance_matrix, gram_matrix, prior_weights, params)
             num_training_samples += 1
+
+            if params["update_projection_matrix"]:
+                # insert new sample
+                for i in range(0, num_feature_blocks):
+                    samplesf[i][:, :, :, new_sample_id:new_sample_id+1] = new_sample[i]
+
+            sample_energy = [np.real(x * np.conj(x)) for x in xlf_proj]
+
+            # init CG params
+            CG_state = None
+            if params["update_projection_matrix"]:
+                init_CG_opts['maxit'] = np.ceil(params["init_CG_iter"] / params["init_GN_iter"])
+                hf = [[[]] * num_feature_blocks for _ in range(2)]
+                feature_dim_sum = float(np.sum(feature_dim))
+                proj_energy = [2 * np.sum(np.abs(yf_.flatten())**2) / feature_dim_sum * np.ones_like(P)
+                                for P, yf_ in zip(proj_matrix, yf)]
+            else:
+                CG_opts['maxit'] = params["init_CG_iter"]
+                hf = [[[]] * num_feature_blocks]
+
+            # init filter
+            for i in range(0, num_feature_blocks):
+                hf[0][i] = np.zeros((int(filter_sz[i][0]), int((filter_sz[i][1]+1)/2), int(sample_dim[i]), 1), dtype=np.complex64)
+            if params['update_projection_matrix']:
+                # init gauss-newton optimiztion of filter and proj matrix
+                hf, proj_matrix = train_joint(hf, proj_matrix, xlf, yf, reg_filter, sample_energy, reg_energy, proj_energy, params, init_CG_opts)
+                xlf_proj = project_sample(xlf, proj_matrix, params["use_gpu"]) # reproject
+                for i in range(0, num_feature_blocks):
+                    samplesf[i][:, :, :, 0:1] = xlf_proj[i]  # insert new sample
+
+                if params['distance_matrix_update_type'] == 'exact':
+                    # find the norm of reproj sample
+                    new_train_sample_norm = 0
+                    for i in range(0, num_feature_blocks):
+                        new_train_sample_norm += 2 * np.real(np.vdot(xlf_proj[i].flatten(), xlf_proj[i].flatten()))
+                    gram_matrix[0, 0] = new_train_sample_norm
+            hf_full = full_fourier_coeff(hf, params['use_gpu'])
+
+            if params['use_scale_filter'] and nScales > 0:
+                print("SCALE FILTER UPDATE")
+                raise NotImplementedError
+        

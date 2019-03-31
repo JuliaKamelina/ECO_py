@@ -2,6 +2,8 @@ import numpy as np
 
 def fft2(x, use_gpu = False):
     if use_gpu:
+        import cupy as cp
+
         print('use gpu')
         # xp = cp.get_array_module(x)
     else:
@@ -10,6 +12,8 @@ def fft2(x, use_gpu = False):
 
 def ifft2(x, use_gpu = False):
     if use_gpu:
+        import cupy as cp
+
         print('use gpu')
         # xp = cp.get_array_module(x)
     else:
@@ -20,6 +24,7 @@ def cfft2(x, use_gpu = False):
     in_shape = x.shape
     # if both dimensions are odd
     if use_gpu:
+        import cupy as cp
         print('use gpu')
         # xp = cp.get_array_module(x)
     else:
@@ -59,4 +64,29 @@ def shift_sample(xf, shift, kx, ky, use_gpu=False):
     shift_exp_x = [xp.exp(1j * shift[1] * x).astype(xp.complex64) for x in kx]
     xf = [xf_ * sy_.reshape(-1, 1, 1, 1) * sx_.reshape((1, -1, 1, 1))
             for xf_, sy_, sx_ in zip(xf, shift_exp_y, shift_exp_x)]
+    return xf
+
+def symmetrize_filter(hf, use_gpu=False):
+    if use_gpu:
+        import cupy as cp
+        print("GPU")
+        xp = cp.get_array_module(hf[0])
+    else:
+        xp = np
+
+    for i in range(len(hf)):
+        dc_ind = int((hf[i].shape[0]+1) / 2)
+        hf[i][dc_ind:, -1, :] = xp.conj(xp.flipud(hf[i][:dc_ind-1, -1, :]))
+    return hf
+
+def full_fourier_coeff(xf, use_gpu=False):
+    """
+        reconstruct full fourier series
+    """
+
+    if use_gpu:
+        xp = cp.get_array_module(xf[0])
+    else:
+        xp = np
+    xf = [xp.concatenate([xf_, xp.conj(xp.rot90(xf_[:, :-1,:], 2))], axis=1) for xf_ in xf]
     return xf

@@ -20,8 +20,8 @@ def feature_normalization(x, gparams):
 def get_sample(im, pos, img_sample_sz, output_sz):
     pos = np.floor(pos)
     sample_sz = np.maximum(np.round(img_sample_sz), 1)
-    x = np.floor(pos[1]) + np.arange(0, img_sample_sz[1]+1) - np.floor((img_sample_sz[1]+1)/2)
-    y = np.floor(pos[0]) + np.arange(0, img_sample_sz[0]+1) - np.floor((img_sample_sz[0]+1)/2)
+    x = np.floor(pos[1]) + np.arange(0, sample_sz[1]+1) - np.floor((sample_sz[1]+1)/2)
+    y = np.floor(pos[0]) + np.arange(0, sample_sz[0]+1) - np.floor((sample_sz[0]+1)/2)
     x_min = max(0, int(x.min()))
     x_max = min(im.shape[1], int(x.max()))
     y_min = max(0, int(y.min()))
@@ -91,12 +91,12 @@ def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
         scale_factor = [scale_factor]
     patches = []
     for scale in scale_factor:
-        patch = get_sample(im, pos, sample_sz*scale_factor, sample_sz)
+        patch = get_sample(im, pos, sample_sz*scale, sample_sz)
         patch = mx.nd.array(patch / 255.)
         normalized = mx.image.color_normalize(patch, mean=mx.nd.array([0.485, 0.456, 0.406]),
                                                     std=mx.nd.array([0.229, 0.224, 0.225]))
         normalized = normalized.transpose((2, 0, 1)).expand_dims(axis=0)
-    patches.append(normalized)
+        patches.append(normalized)
     patches = mx.nd.concat(*patches, dim=0)
     f1, f2 = forward_pass(patches)
     f1 = feature_normalization(f1, gparams)

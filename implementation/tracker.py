@@ -18,7 +18,8 @@ from features import get_cnn_layers, get_fhog
 from fourier_tools import *
 from dim_reduction import *
 from sample_space_model import update_sample_space_model
-from train import train_joint
+from train import train_joint, train_filter
+from optimize_scores import *
 
 def tracker(params):
     #Get sequence info
@@ -134,18 +135,15 @@ def tracker(params):
 
     # Size of the extracted feature maps
     # TODO: Checks
-    feature_sz_cell = []
-    feature_sz_cell = np.array(feature_sz)
+    feature_sz = np.array(feature_sz)
 
-    filter_sz = []
-    filter_sz = feature_sz_cell
-    filter_sz = filter_sz + (filter_sz + 1) % 2
+    filter_sz = feature_sz + (feature_sz + 1) % 2
 
-    k = np.argmax(filter_sz)
-    output_sz = filter_sz[k]  # The size of the label function DFT
+    k_max = np.argmax(filter_sz)
+    output_sz = filter_sz[k_max]  # The size of the label function DFT == maximum filter size
 
-    # block_inds = np.arange(0, num_feature_blocks)
-    # block_inds[k] = []
+    block_inds = list(range(0, num_feature_blocks))
+    block_inds.remove(k_max)
 
     #  How much each feature block has to be padded to the obtain output_sz
     pad_sz = []
@@ -157,34 +155,17 @@ def tracker(params):
     #  Compute the Fourier series indices and their transposes
     kx = [np.arange(-1*int(np.ceil(sz[0] - 1)/2.0), 1) for sz in filter_sz]
     ky = [np.arange(-1*int(np.ceil(sz[0] - 1)/2.0), int(np.ceil(sz[0] - 1)/2.0) + 1) for sz in filter_sz]
-    # for i in range(0, len(filter_sz)):
-    #     val = np.ceil(filter_sz[i][0] - 1)/2.0
-    #     ky.append(np.arange(-1*int(val), int(val) + 1))
-    #     kx.append(np.arange(-1*int(val), 1))
-    # kx = np.array(kx)
-    # ky = np.array(ky)
 
     #Gaussian label function
     sig_y = np.sqrt(np.prod(np.floor(base_target_sz))) * params["output_sigma_factor"] * (output_sz / img_support_sz)  # Gaussian label
     yf_y = [np.sqrt(2*math.pi)*sig_y[0]/output_sz[0]*np.exp(-2*(math.pi*sig_y[0]*y/output_sz[0])**2) for y in ky]
     yf_x = [np.sqrt(2*math.pi)*sig_y[1]/output_sz[1]*np.exp(-2*(math.pi*sig_y[1]*x/output_sz[1])**2) for x in kx]
-    # for i in range(0, len(kx)):
-    #     yf_y.append(np.sqrt(2*math.pi)*sig_y[0]/output_sz[0]*np.exp(-2*(math.pi*sig_y[0]*ky[i]/output_sz[0])**2))
-    #     yf_x.append(np.sqrt(2*math.pi)*sig_y[1]/output_sz[1]*np.exp(-2*(math.pi*sig_y[1]*kx[i]/output_sz[1])**2))
-    # yf_x = np.array(yf_x)
-    # yf_y = np.array(yf_y)
     yf = [y.reshape(-1, 1)*x for y, x in zip(yf_y, yf_x)]
-    # for k in range(0, len(yf_y)):
-    #     yf_k = []
-    #     for i in range(0, len(yf_y[k])):
-    #         yf_k.append(yf_y[k][i]*yf_x[k])
-    #     yf.append(yf_k)
-    # yf = np.array(yf)
     
     cos_window = []
-    for i in range(0, len(feature_sz_cell)):
-        cos_y = scipy.signal.hann(int(feature_sz_cell[i][0]+2))
-        cos_x = scipy.signal.hann(int(feature_sz_cell[i][1]+2))
+    for i in range(0, len(feature_sz)):
+        cos_y = scipy.signal.hann(int(feature_sz[i][0]+2))
+        cos_x = scipy.signal.hann(int(feature_sz[i][1]+2))
         cos_x = cos_x.reshape(len(cos_x), 1)
         cos_window.append(cos_y*cos_x)
     cos_window = np.array(cos_window)
@@ -208,13 +189,14 @@ def tracker(params):
         shape += len(features[i]["fparams"]["nDim"])
     reg_window_edge = reg_window_edge.reshape((shape, 0))
 
-    reg_filter = []
-    for i in range(0, len(reg_window_edge)):
-        reg_filter.append(get_reg_filter(img_support_sz, base_target_sz, params, reg_window_edge[i]))
-    reg_filter = np.array(reg_filter)
+    reg_filter = np.array([get_reg_filter(img_support_sz, base_target_sz, params, reg_win_edge)
+                           for reg_win_edge in reg_window_edge])
+    # for i in range(0, len(reg_window_edge)):
+    #     reg_filter.append(get_reg_filter(img_support_sz, base_target_sz, params)
+    # reg_filter = np.array(reg_filter)
 
     reg_energy = [np.real(np.vdot(reg_filter.flatten(), reg_filter.flatten()))
-                    for reg_filter in reg_filter]
+                  for reg_filter in reg_filter]
 
     if params["use_scale_filter"]:
         print("Ops")
@@ -222,7 +204,7 @@ def tracker(params):
     else:
         nScales = params["number_of_scales"]
         scale_step = params["scale_step"]
-        scale_exp = np.arange(-np.floor((nScales-1)/2), np.ceil((nScales-1)/2))
+        scale_exp = np.arange(-np.floor((nScales-1)/2), np.ceil((nScales-1)/2)+1)
         scaleFactors = scale_step**scale_exp
     
     if nScales > 0:
@@ -259,6 +241,7 @@ def tracker(params):
 
     distance_matrix = np.ones((params["nSamples"], params["nSamples"]), dtype=np.float32) * np.inf  # stores the square of the euclidean distance between each pair of samples
     gram_matrix = np.ones((params["nSamples"], params["nSamples"]), dtype=np.float32) * np.inf  # Kernel matrix, used to update distance matrix
+    # proj_matrix = 
 
     latest_ind = []
     frames_since_last_train = np.inf
@@ -268,19 +251,21 @@ def tracker(params):
     res_norms = []
     residuals_pcg = []
 
+    tracker_time = 0
     while True:
-        if seq["frame"] > 0:
+        if seq["frame"] >= 0:
             if seq["frame"] >= seq["num_frames"]:
                 im = []
                 break
             else:
                 im = cv.imread(seq["image_files"][seq["frame"]])
-            seq["frame"] += 1
-        else:
-            seq["frame"] = 0
+                if is_color_image:
+                    im = cv.cvtColor(im, cv.COLOR_RGB2BGR)
+        # else:
+        #     seq["frame"] = 0
         tic = time.clock()
 
-        if seq["frame"] == 0:
+        if seq["frame"] == 0:  # INIT AND UPDATE TRACKER
             sample_pos = np.round(pos)
             sample_scale = currentScaleFactor
             xl = [x for i in range(0, len(features))
@@ -341,4 +326,115 @@ def tracker(params):
             if params['use_scale_filter'] and nScales > 0:
                 print("SCALE FILTER UPDATE")
                 raise NotImplementedError
-        
+        else:   # TARGET LOCALIZATION
+            old_pos = np.zeros((2))
+            for _ in range(0, params['refinement_iterations']):
+                if not np.allclose(old_pos, pos):
+                    old_pos = pos
+                    sample_pos = np.round(pos)
+                    sample_scale = currentScaleFactor*scaleFactors
+                    xt = [x for i in range(0, len(features))
+                          for x in features[i]["feature"](im, features[i]["fparams"], global_fparams, sample_pos, features[i]['img_sample_sz'], currentScaleFactor)] # extract features
+                    # if params['use_gpu']
+                    xt_proj = project_sample(xt, proj_matrix, params['use_gpu'])  # project sample
+                    xt_proj = [fmap * cos for fmap, cos in zip(xt_proj, cos_window)]  # do windowing
+                    xtf_proj = [cfft2(x, params['use_gpu']) for x in xt_proj]  # fouries series
+                    xtf_proj = interpolate_dft(xtf_proj, interp1_fs, interp2_fs)  # interpolate features
+
+                    # compute convolution for each feature block in the fourier domain, then sum over blocks
+                    scores_fs_feat = [[]]*num_feature_blocks
+                    scores_fs_feat[k_max] = np.sum(hf_full[k_max]*xtf_proj[k_max], 2)
+                    scores_fs = scores_fs_feat[k_max]
+
+                    for ind in block_inds:
+                        scores_fs_feat[ind] = np.sum(hf_full[ind]*xtf_proj[ind], 2)
+                        scores_fs[int(pad_sz[ind][0]):int(output_sz[0]-pad_sz[ind][0]),
+                                  int(pad_sz[ind][1]):int(output_sz[0]-pad_sz[ind][1])] += scores_fs_feat[ind]
+
+                    # OPTIMIZE SCORE FUNCTION with Newnot's method.
+                    trans_row, trans_col, scale_idx = optimize_scores(scores_fs, params["newton_iterations"], params['use_gpu'])
+
+                    # compute the translation vector in pixel-coordinates and round to the cloest integer pixel
+                    translation_vec = np.array([trans_row, trans_col])*(img_support_sz/output_sz)*currentScaleFactor*scaleFactors[scale_idx]
+                    scale_change_factor = scaleFactors[scale_idx]
+
+                    # update_position
+                    pos = sample_pos + translation_vec
+
+                    if params['clamp_position']:
+                        pos = np.maximum(np.array(0, 0), np.minimum(np.array(im.shape[:2]), pos))
+
+                    # do scale tracking with scale filter
+                    if nScales > 0 and params['use_scale_filter']:
+                        # scale_filter_track
+                        raise(NotImplementedError)
+
+                    # update scale
+                    currentScaleFactor *= scale_change_factor
+
+                    # adjust to make sure we are not to large or to small
+                    if currentScaleFactor < min_scale_factor:
+                        currentScaleFactor = min_scale_factor
+                    elif currentScaleFactor > max_scale_factor:
+                        currentScaleFactor = max_scale_factor
+
+            # MODEL UPDATE STEP
+            if params['learning_rate'] > 0:
+                # use sample that was used for detection
+                sample_scale = sample_scale[scale_idx]
+                xlf_proj = [xf[:, :(xf.shape[1]+1)//2, :, scale_idx:scale_idx+1] for xf in xtf_proj]
+
+                # shift sample target is centred
+                shift_samp = 2*np.pi*(pos - sample_pos)/(sample_scale*img_support_sz)
+                xlf_proj = shift_sample(xlf_proj, shift_samp, kx, ky, params['use_gpu'])
+
+            # update the samplesf to include the new sample. The distance matrix, kernel matrix and prior weight are also updated
+            merged_sample, new_sample, merged_sample_id, new_sample_id = update_sample_space_model(samplesf, xlf_proj, num_training_samples, distance_matrix, gram_matrix, prior_weights, params)
+            if num_training_samples < params['nSamples']:
+                num_training_samples += 1
+
+            if params['learning_rate'] > 0:
+                for i in range(0, num_feature_blocks):
+                    if merged_sample_id >= 0:
+                        samplesf[i][:,:,:,merged_sample_id:merged_sample_id+1] = merged_sample[i]
+                    if new_sample_id >= 0:
+                        samplesf[i][:,:,:,new_sample_id:new_sample_id+1] = new_sample[i]
+
+            # train filter
+            if seq['frame'] < params['skip_after_frame'] or frames_since_last_train >= params['train_gap']:
+                new_sample_energy = [np.real(xlf * np.conj(xlf)) for xlf in xlf_proj]
+                CG_opts['maxit'] = params['CG_iter']
+                sample_energy = [(1 - params['learning_rate'])*se + params['learning_rate']*nse
+                                 for se, nse in zip(sample_energy, new_sample_energy)]
+
+                # do CG opt for filter
+                hf, CG_state = train_filter(hf, samplesf, yf, reg_filter, prior_weights, sample_energy, reg_energy, params, CG_opts, CG_state)
+                hf_full = full_fourier_coeff(hf)
+                frames_since_last_train = 0
+            else:
+                frames_since_last_train += 1
+            if params['use_scale_filter']:
+                #scale_filter_update
+                raise(NotImplementedError)
+
+            # update target size
+            target_sz = base_target_sz*currentScaleFactor
+            tracker_time += time.clock() - tic
+        bbox = (int(pos[1] - target_sz[1]/2),  # x_min
+                int(pos[1] + target_sz[1]/2),  # x_max
+                int(pos[0] - target_sz[0]/2),  # y_min
+                int(pos[0] + target_sz[0]/2))  # y_max
+        print(bbox)
+
+        # VISUALIZATION
+        # frame = im
+        # if not is_color_image:
+        #     frame = cv.cvtColor(frame, cv.COLOR_GRAY2BGR)
+        # frame = cv.rectangle(frame,
+        #                       (int(bbox[0]), int(bbox[2])),
+        #                       (int(bbox[1]), int(bbox[3])),
+        #                       (0, 255, 255),
+        #                       1)
+        # frame = cv.putText(frame, str(seq["frame"]), (5, 20), cv.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 1)
+        # cv.imshow('',frame)
+        seq["frame"] += 1

@@ -4,9 +4,14 @@ import cv2 as cv
 
 from mxnet.gluon.model_zoo import vision
 from mxnet.gluon.nn import AvgPool2D
-from _gradient import *
+from ._gradient import *
 
-def feature_normalization(x, gparams):
+from ..runfiles import settings
+if settings.params['use_gpu']:
+    import cupy as cp
+
+def feature_normalization(x):
+    gparams = settings.params['t_global']
     if ('normalize_power' in gparams.keys()) and gparams["normalize_power"] > 0:
         if gparams["normalize_power"] == 2:
             x = x * np.sqrt((x.shape[0]*x.shape[1]) ** gparams["normalize_size"] * (x.shape[2]**gparams["normalize_dim"]) / (x**2).sum(axis=(0, 1, 2)))
@@ -79,7 +84,10 @@ def forward_pass(x):
     return [pool_avg.asnumpy().transpose(2, 3, 1, 0),
             pool4.asnumpy().transpose(2, 3, 1, 0)]
 
-def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
+def get_cnn_layers(im, pos, sample_sz, scale_factor):
+    gparams = settings.params['t_global']
+    fparams = settings.params['t_features'][0]['fparams']
+
     compressed_dim = fparams["compressed_dim"] # TODO: check
     cell_size = fparams["cell_size"]
     penalty = fparams["penalty"]
@@ -99,11 +107,13 @@ def get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor):
         patches.append(normalized)
     patches = mx.nd.concat(*patches, dim=0)
     f1, f2 = forward_pass(patches)
-    f1 = feature_normalization(f1, gparams)
-    f2 = feature_normalization(f2, gparams)
+    f1 = feature_normalization(f1)
+    f2 = feature_normalization(f2)
     return f1, f2
 
-def get_fhog(img, fparams, gparams, pos, sample_sz, scale_factor):
+def get_fhog(img, pos, sample_sz, scale_factor):
+    fparams = settings.params['t_features'][1]['fparams']
+
     feat = []
     if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
         scale_factor = [scale_factor]
@@ -115,5 +125,5 @@ def get_fhog(img, fparams, gparams, pos, sample_sz, scale_factor):
         # drop the last dimension
         H = H[:, :, :-1]
         feat.append(H)
-    feat = feature_normalization(np.stack(feat, axis=3), gparams)
+    feat = feature_normalization(np.stack(feat, axis=3))
     return [feat]

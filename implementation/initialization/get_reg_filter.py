@@ -1,6 +1,9 @@
 import numpy as np
+from ..runfiles import settings
 
-def get_reg_filter(sz, target_sz, params, reg_window_edge):
+def get_reg_filter(sz, target_sz, reg_window_edge):
+    params = settings.params
+
     if np.all(reg_window_edge == []):
         reg_window_edge = params["reg_window_edge"]
 

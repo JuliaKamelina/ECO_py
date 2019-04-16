@@ -1,21 +1,19 @@
 import numpy as np
 
+from .runfiles import settings
+if settings.params['use_gpu']:
+    import cupy as cp
+
 def fft2(x, use_gpu = False):
     if use_gpu:
-        import cupy as cp
-
         print('use gpu')
-        # xp = cp.get_array_module(x)
     else:
         xp = np
     return xp.fft.fft(xp.fft.fft(x, axis=1), axis=0).astype(xp.complex64)
 
 def ifft2(x, use_gpu = False):
     if use_gpu:
-        import cupy as cp
-
         print('use gpu')
-        # xp = cp.get_array_module(x)
     else:
         xp = np
     return xp.fft.ifft(xp.fft.ifft(x, axis=1), axis=0).astype(xp.complex64)
@@ -24,7 +22,6 @@ def cfft2(x, use_gpu = False):
     in_shape = x.shape
     # if both dimensions are odd
     if use_gpu:
-        import cupy as cp
         print('use gpu')
         # xp = cp.get_array_module(x)
     else:
@@ -46,9 +43,8 @@ def cfft2(x, use_gpu = False):
 
 def cifft2(xf, use_gpu = False):
     if use_gpu:
-        import cupy as cp
         print('use gpu')
-        xp = cp.get_array_module(x)
+        xp = cp.get_array_module(xf)
     else:
         xp = np
 
@@ -79,7 +75,6 @@ def shift_sample(xf, shift, kx, ky, use_gpu=False):
 
 def symmetrize_filter(hf, use_gpu=False):
     if use_gpu:
-        import cupy as cp
         print("GPU")
         xp = cp.get_array_module(hf[0])
     else:
@@ -108,7 +103,6 @@ def sample_fs(xf, use_gpu=False, grid_sz=None):
     """
 
     if use_gpu:
-        import cupy as cp
         print("GPU")
         xp = cp.get_array_module(xf)
     else:

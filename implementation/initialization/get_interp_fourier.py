@@ -1,7 +1,9 @@
 import numpy as np
-from initialization.cubic_spline_fourier import *
+from .cubic_spline_fourier import cubic_spline_fourier
+from ..runfiles import settings
 
-def get_interp_fourier(sz, params):
+def get_interp_fourier(sz):
+    params = settings.params
     if (params["interpolation_method"] == 'bicubic'):
         a = params["interpolation_bicubic_a"]
         interp1_fs = np.real(1/sz[0] * cubic_spline_fourier(np.array(range(int(-(sz[0]-1)/2), int((sz[0]-1)/2 + 1)))/sz[0], a))

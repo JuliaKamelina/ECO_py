@@ -1,13 +1,15 @@
 import numpy as np
 
-from fourier_tools import sample_fs
+from .fourier_tools import sample_fs
+from .runfiles import settings
+if settings.params['use_gpu']:
+    import cupy as cp
 
 def optimize_scores(scores_fs, iterations, use_gpu=False):
     """
         Maximizes the continuous convolution response (classification scores)
     """
     if use_gpu:
-        import cupy as cp
         xp = cp.get_array_module(scores_fs)
     else:
         xp = np

@@ -2,9 +2,14 @@ import numpy as np
 import scipy.io
 import os
 
-def init_features(features, gparams, is_color_image = False, img_sample_sz = [], size_mode = ''):
+from ..runfiles import settings
+
+def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
     if (size_mode == ''):
         size_mode = 'same'
+
+    features = settings.params['t_features']
+    gparams = settings.params['t_global']
 
     gp_keys = gparams.keys()
     if not 'normalize_power' in gp_keys:
@@ -62,7 +67,7 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
             if not 'downsample_factor' in features[i]["fparams"].keys():
                 features[i]["fparams"]["downsample_factor"] = np.ones((1, len(features[i]["fparams"]["output_layer"])))
 
-            features[i]["fparams"]["nDim"] = np.array([96, 512]) #[64 512] net["info"]["dataSize"][layer_dim_ind, 2]
+            features[i]["fparams"]["nDim"] = np.array([64, 512]) #[96 512] net["info"]["dataSize"][layer_dim_ind, 2]
 
             features[i]["fparams"]["cell_size"] = np.array([4, 16]) #stride_tmp*downsample_factor
 
@@ -109,4 +114,4 @@ def init_features(features, gparams, is_color_image = False, img_sample_sz = [],
             features[i]["data_sz"] = np.ceil(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"])
         else:
             features[i]["data_sz"] = np.ceil(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"][:, None])
-    return(features, gparams)
+    # return(features, gparams)

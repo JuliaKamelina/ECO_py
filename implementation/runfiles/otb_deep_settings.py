@@ -1,5 +1,4 @@
 import numpy as np
-from ..feature_extraction import get_cnn_layers, get_fhog
 
 class OTBDeep:
     hog_params = {
@@ -20,12 +19,12 @@ class OTBDeep:
         "t_features": [
             {
                 'name': 'get_cnn_layers',
-                'feature': (lambda im, pos, sample_sz, scale_factor: get_cnn_layers(im, fparams, gparams, pos, sample_sz, scale_factor)),
+                # 'feature': (lambda im, pos, sample_sz, scale_factor: get_cnn_layers(im, pos, sample_sz, scale_factor)),
                 'fparams': cnn_params
             },
             {
                 'name': 'get_fhog',
-                'feature': (lambda im, pos, sample_sz, scale_factor: get_fhog(im, fparams, gparams, pos, sample_sz, scale_factor)),
+                # 'feature': (lambda im, pos, sample_sz, scale_factor: get_fhog(im, pos, sample_sz, scale_factor)),
                 'fparams': hog_params
             }
         ],

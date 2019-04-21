@@ -1,22 +1,34 @@
 import sys
 import os
-sys.path.append('./')
-# sys.path.append('./implementation')
+import cv2
+import numpy as np
 
-from implementation import tracker
-from implementation.utils import load_video_info
+from PIL import Image
+sys.path.append('./')
+
+from implementation import Tracker
+from implementation.utils import load_video_info, get_sequence_info
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-# sys.path.append(cur_path + '/feature_extraction/')
-# sys.path.append(cur_path + '/implementation/')
-# sys.path.append(cur_path + '/implementation/initialization/')
-# sys.path.append(cur_path + '/runfiles/')
-# sys.path.append(cur_path + '/utils/')
-
-# from load_video_info import *
-# from testing_ECO import *
-
 video_path = "{}/sequences/Crossing".format(cur_path)
 seq, ground_truth = load_video_info(video_path)
-tracker(seq)
+seq = get_sequence_info(seq)
+frames = [np.array(Image.open(f)) for f in seq["image_files"]]
+is_color = True if (len(frames[0].shape) == 3) else False
+tracker = Tracker(seq, frames[0], is_color)
+for i, frame in enumerate(frames):
+    bbox, time = tracker.Track(frame, i)
+    print(bbox)
+    print(time)
+    if is_color:
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    else:
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+    frame = cv2.rectangle(frame,
+                              (int(bbox[0]), int(bbox[2])),
+                              (int(bbox[1]), int(bbox[3])),
+                              (0, 255, 255),
+                              1)
+    cv2.imshow('', frame)
+    cv2.waitKey(1)

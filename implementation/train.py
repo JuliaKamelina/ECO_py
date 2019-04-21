@@ -315,7 +315,7 @@ def train_joint(hf, projection_matrix, xlf, yf, reg_filter, sample_energy, reg_e
     diag_M[1] = [params['precond_proj_param'] * (m + params['projection_reg']) for m in proj_energy]
 
     rhs_samplef = [[]] * len(hf[0])
-    for iter in range(0, params['init_CG_iter']):
+    for iter in range(0, params['init_GN_iter']):
         init_samplef_proj = [np.matmul(P.T, x) for x, P in zip(init_samplef, projection_matrix)]  # project sample with new projection_matrix
         init_hf = hf[0]
         rhs_samplef[0] = [np.conj(x) * y[:, :, np.newaxis, np.newaxis] for x, y in zip(init_samplef_proj, yf)] # right-hand-side vector for filter

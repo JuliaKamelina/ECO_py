@@ -11,6 +11,5 @@ def get_sequence_info(seq):
         seq['init_pos'] = np.array([seq['init_rect'][1], seq['init_rect'][0]]) + (seq["init_sz"] - 1)/2
         seq['num_frames'] = len(seq['image_files'])
         seq['rect_position'] = np.zeros((seq['num_frames'], 4))
-        init_image = cv.imread(seq['image_files'][0])
 
-    return(seq, init_image)
+    return seq

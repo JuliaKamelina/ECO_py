@@ -3,14 +3,14 @@ import numpy as np
 class OTBDeep:
     hog_params = {
         "cell_size": 4,
-        "compressed_dim": 10
+        "compressed_dim": [10]
     }
 
     cnn_params = {
         "nn_name": 'vgg16',
         "output_layer": np.array([3, 14]),
         "downsample_factor": np.array([2, 1]),  # How much to downsample each output layer
-        "compressed_dim": np.array([16, 64]),   # Compressed dimensionality of each output layer
+        "compressed_dim": [16, 64],   # Compressed dimensionality of each output layer
         "input_size_mode": 'adaptive',
         "input_size_scale": 1
     }
@@ -66,6 +66,7 @@ class OTBDeep:
         "use_sample_merge": True,
         "sample_merge_type": 'merge',
         "distance_matrix_update_type": 'exact',
+        "minimum_sample_weight": 0.009*(1-0.009)**(2*50),
 
         # Conjugate Gradient parameters
         "CG_iter": 5,

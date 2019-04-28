@@ -112,7 +112,7 @@ class Tracker:
         self.num_feature_blocks = len(self.feature_dim)
 
         if params["use_projection_matrix"]:
-            self.sample_dim = [x for feature in features for x in [feature["fparams"]["compressed_dim"]]]
+            self.sample_dim = [x for feature in features for x in feature["fparams"]["compressed_dim"]]
             # self.sample_dim = [features[i]["fparams"]["compressed_dim"] for i in range(0, len(features))]
             # self.sample_dim = np.concatenate((self.sample_dim[0], np.array(self.sample_dim[1]).reshape(1,)))
         else:

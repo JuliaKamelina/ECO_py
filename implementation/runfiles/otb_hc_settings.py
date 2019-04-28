@@ -3,21 +3,21 @@ import numpy as np
 class OTBHC:
     hog_params = {
         "cell_size": 6,
-        "compressed_dim": 10
+        "compressed_dim": [10]
     }
 
     cn_params = {
         "tablename": "CNnorm",
         "useForColor": True,
         "cell_size": 4,
-        "compressed_dim": 3
+        "compressed_dim": [3]
     }
 
     ic_params = {
         "tablename": "intensityChannelNorm6",
         "useForColor": False,
         "cell_size": 4,
-        "compressed_dim": 3
+        "compressed_dim": [3]
     }
 
     params = {

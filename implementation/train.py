@@ -3,7 +3,10 @@ import warnings
 
 from scipy.signal import convolve
 
-from fourier_tools import symmetrize_filter
+from .fourier_tools import symmetrize_filter
+from .runfiles import settings
+if settings.params['use_gpu']:
+    import cupy as cp
 
 def pcg(A, b, opts, M1, M2, ip, x0, state=None, use_gpu=False):
     if use_gpu:
@@ -232,7 +235,6 @@ def lhs_operation(hf, samplesf, reg_filter, sample_weights, use_gpu=False):
         This is the left-hand-side operation in Conjugate Gradient
     """
     if use_gpu:
-        import cupy as cp
         xp = cp.get_array_module(hf[0][0])
     else:
         xp = np
@@ -295,7 +297,9 @@ def lhs_operation(hf, samplesf, reg_filter, sample_weights, use_gpu=False):
             # hf_out[i] += convolve2d(hf_conv[:, :-reg_pad, :], reg_filter[i][:,:,cp.newaxis,cp.newaxis], 'valid')
     return [hf_out]
 
-def train_joint(hf, projection_matrix, xlf, yf, reg_filter, sample_energy, reg_energy, proj_energy, params, init_CG_opts):
+def train_joint(hf, projection_matrix, xlf, yf, reg_filter, sample_energy, reg_energy, proj_energy, init_CG_opts):
+    params = settings.params
+
     if params["use_gpu"]:
         # xp = cp.get_array_module(hf[0][0])
         print("GPU")
@@ -311,7 +315,7 @@ def train_joint(hf, projection_matrix, xlf, yf, reg_filter, sample_energy, reg_e
     diag_M[1] = [params['precond_proj_param'] * (m + params['projection_reg']) for m in proj_energy]
 
     rhs_samplef = [[]] * len(hf[0])
-    for iter in range(0, params['init_CG_iter']):
+    for iter in range(0, params['init_GN_iter']):
         init_samplef_proj = [np.matmul(P.T, x) for x, P in zip(init_samplef, projection_matrix)]  # project sample with new projection_matrix
         init_hf = hf[0]
         rhs_samplef[0] = [np.conj(x) * y[:, :, np.newaxis, np.newaxis] for x, y in zip(init_samplef_proj, yf)] # right-hand-side vector for filter
@@ -342,7 +346,6 @@ def inner_product_filter(xf, yf, use_gpu=False):
         computes the inner product between two filters
     """
     if use_gpu:
-        import cupy as cp
         xp = cp.get_array_module(xf[0][0])
     else:
         xp = np
@@ -352,13 +355,13 @@ def inner_product_filter(xf, yf, use_gpu=False):
         ip += 2 * xp.vdot(xf[0][i].flatten(), yf[0][i].flatten()) - xp.vdot(xf[0][i][:, -1, :].flatten(), yf[0][i][:, -1, :].flatten())
     return xp.real(ip)
 
-def train_filter(hf, samplesf, yf, reg_filter, sample_weights, sample_energy, reg_energy, params, CG_opts, CG_state):
+def train_filter(hf, samplesf, yf, reg_filter, sample_weights, sample_energy, reg_energy, CG_opts, CG_state):
     """
         do conjugate graident optimization of the filter
     """
+    params = settings.params
 
     if params['use_gpu']:
-        import cupy as cp
         xp = cp.get_array_module(hf[0][0])
     else:
         xp = np

@@ -1,6 +1,9 @@
 import numpy as np
+from ..runfiles import settings
 
-def get_reg_filter(sz, target_sz, params, reg_window_edge):
+def get_reg_filter(sz, target_sz, reg_window_edge):
+    params = settings.params
+
     if np.all(reg_window_edge == []):
         reg_window_edge = params["reg_window_edge"]
 
@@ -9,8 +12,8 @@ def get_reg_filter(sz, target_sz, params, reg_window_edge):
 
         reg_scale = 0.5*target_sz
 
-        wrg = np.arange(-(sz[0]-1)/2, (sz[0]-1)/2)
-        wcg = np.arange(-(sz[1]-1)/2, (sz[1]-1)/2)
+        wrg = np.arange(-(sz[0]-1)/2, (sz[0]-1)/2+1)
+        wcg = np.arange(-(sz[1]-1)/2, (sz[1]-1)/2+1)
         wrs, wcs = np.meshgrid(wrg, wcg)
 
         reg_window = (reg_window_edge - params["reg_window_min"]) * \

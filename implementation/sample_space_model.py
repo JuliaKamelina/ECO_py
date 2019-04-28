@@ -1,4 +1,7 @@
 import numpy as np
+from .runfiles import settings
+if settings.params['use_gpu']:
+    import cupy as cp
 
 def find_gram_vector(samplesf, new_sample, num_training_samples, num_samples):
     # Find the inner product of the new sample with the existing samples
@@ -33,7 +36,7 @@ def update_distance_matrix(gram_matrix, distance_matrix, gram_vector, new_sample
             gram_matrix[id1, :] = gram_matrix[:, id1]
             gram_matrix[id1, id1] = alpha1 ** 2 * norm_id1 + alpha2 ** 2 * new_sample_norm + 2 * alpha1 * alpha2 * gram_vector[id1]
 
-            # udpate distance matrix
+        # udpate distance matrix
         distance_matrix[:, id1] = np.maximum(gram_matrix[id1, id1] + np.diag(gram_matrix) - 2 * gram_matrix[:, id1], 0)
         distance_matrix[id1, :] = distance_matrix[:, id1]
         distance_matrix[id1, id1] = np.inf
@@ -75,7 +78,8 @@ def merge_samples(sample1, sample2, w1, w2, sample_merge_type):
         merged_sample = [alpha1 * sample1[k] + alpha2 * sample2[k] for k in range(0, num_feature_blocks)]
     return merged_sample
 
-def update_sample_space_model(samplesf, new_train_sample, num_training_samples, distance_matrix, gram_matrix, prior_weights, params):
+def update_sample_space_model(samplesf, new_train_sample, num_training_samples, distance_matrix, gram_matrix, prior_weights):
+    params = settings.params
     # if config.use_gpu:
     #         xp = cp.get_array_module(samplesf[0])
     #     else:
@@ -177,7 +181,7 @@ def update_sample_space_model(samplesf, new_train_sample, num_training_samples, 
                 merged_sample = merge_samples(sample_to_merge1, sample_to_merge2, prior_weights[closest_existing_sample1], prior_weights[closest_existing_sample2], params["sample_merge_type"])
 
                 # update distance matrix and the gram matrix
-                distance_matrix, gram_matrix = update_distance_matrix(distance_matrix, gram_matrix, gram_vector, new_train_sample_norm, 
+                distance_matrix, gram_matrix = update_distance_matrix(gram_matrix, distance_matrix, gram_vector, new_train_sample_norm, 
                                                                       closest_existing_sample1, closest_existing_sample2, 
                                                                       prior_weights[closest_existing_sample1, 0], prior_weights[closest_existing_sample2, 0])
 
@@ -195,7 +199,7 @@ def update_sample_space_model(samplesf, new_train_sample, num_training_samples, 
         sample_position = num_training_samples
 
         # update the distance matrix and the gram matrix
-        distance_matrix, gram_matrix = update_distance_matrix(distance_matrix, gram_matrix, gram_vector, new_train_sample_norm,sample_position, -1, 0, 1)
+        distance_matrix, gram_matrix = update_distance_matrix(gram_matrix, distance_matrix, gram_vector, new_train_sample_norm,sample_position, -1, 0, 1)
 
         # update the prior weight
         if sample_position == 0:

@@ -62,7 +62,7 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
     params["clamp_position"] = False          # Clamp the target position to be inside the image
 
     # Learning parameters
-    params["output_sigma_factor"] = 1/12.0		# Label function sigma
+    params["output_sigma_factor"] = 1/8.0		# Label function sigma
     params["learning_rate"] = 0.009	 	 	# Learning rate
     params["nSamples"] = 50                   # Maximum number of stored training samples
     params["sample_replace_strategy"] = 'lowest_prior'    # Which sample to replace when the memory is full
@@ -84,8 +84,8 @@ def testing_ECO (seq): #parameters, res_path, bSaveImage
 
     # Conjugate Gradient parameters
     params["CG_iter"] = 5                     # The number of Conjugate Gradient iterations in each update after the first frame
-    params["init_CG_iter"] = 10*15            # The total number of Conjugate Gradient iterations used in the first frame
-    params["init_GN_iter"] = 10               # The number of Gauss-Newton iterations used in the first frame (only if the projection matrix is updated)
+    params["init_CG_iter"] = 10*15 #15*15           # The total number of Conjugate Gradient iterations used in the first frame
+    params["init_GN_iter"] = 10    #15           # The number of Gauss-Newton iterations used in the first frame (only if the projection matrix is updated)
     params["CG_use_FR"] = False               # Use the Fletcher-Reeves (True) or Polak-Ribiere (False) formula in the Conjugate Gradient
     params["CG_standard_alpha"] = True        # Use the standard formula for computing the step length in Conjugate Gradient
     params["CG_forgetting_rate"] = 75	 	 	# Forgetting rate of the last conjugate direction

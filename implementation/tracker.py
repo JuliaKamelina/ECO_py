@@ -8,13 +8,14 @@ import sys
 
 from scipy import signal
 
-from .feature_extraction import init_features, get_cnn_layers, get_fhog
+from .feature_extraction import init_features, get_cnn_layers, get_fhog, get_table_feature
 from .initialization import get_interp_fourier, get_reg_filter
 from .fourier_tools import cfft2, interpolate_dft, shift_sample, full_fourier_coeff, ifft2, fft2, compact_fourier_coeff, sample_fs
 from .dim_reduction import *
 from .sample_space_model import update_sample_space_model
 from .train import train_joint, train_filter
 from .optimize_scores import *
+from .scale_filter import ScaleFilter
 from .runfiles import settings
 
 class Tracker:
@@ -50,8 +51,10 @@ class Tracker:
 
     def SetScales(self, im):
         if settings.params["use_scale_filter"]:
-            print("Ops")
-            raise NotImplementedError
+            self.scale_filter = ScaleFilter(self.target_sz)
+            self.nScales = self.scale_filter.num_scales
+            self.scaleFactors = self.scale_filter.scale_factors
+            scale_step = self.scale_filter.scale_step
         else:
             self.nScales = settings.params["number_of_scales"]
             scale_step = settings.params["scale_step"]
@@ -91,6 +94,7 @@ class Tracker:
             img_sample_sz = self.base_target_sz + math.sqrt(np.prod(self.base_target_sz*params["search_area_scale"]) + (self.base_target_sz[0] - self.base_target_sz[1])/4) - sum(self.base_target_sz)/2
         if params["search_area_shape"] == 'custom':
             img_sample_sz = np.array((self.base_target_sz[0]*2, self.base_target_sz[1]*2), float)
+        img_sample_sz = np.ceil(img_sample_sz)
 
         init_features(self.is_color_image, img_sample_sz, 'odd_cells')
 
@@ -108,8 +112,9 @@ class Tracker:
         self.num_feature_blocks = len(self.feature_dim)
 
         if params["use_projection_matrix"]:
-            self.sample_dim = [features[i]["fparams"]["compressed_dim"] for i in range(0, len(features))]
-            self.sample_dim = np.concatenate((self.sample_dim[0], np.array(self.sample_dim[1]).reshape(1,)))
+            self.sample_dim = [x for feature in features for x in [feature["fparams"]["compressed_dim"]]]
+            # self.sample_dim = [features[i]["fparams"]["compressed_dim"] for i in range(0, len(features))]
+            # self.sample_dim = np.concatenate((self.sample_dim[0], np.array(self.sample_dim[1]).reshape(1,)))
         else:
             self.sample_dim = self.feature_dim
 
@@ -183,7 +188,7 @@ class Tracker:
             self.sample_pos = np.round(self.pos)
             sample_scale = self.currentScaleFactor
             xl = [x for i in range(0, len(features))
-                    for x in features[i]["feature"](frame, self.sample_pos, features[i]['img_sample_sz'], self.currentScaleFactor)]
+                    for x in features[i]["feature"](frame, self.sample_pos, features[i]['img_sample_sz'], self.currentScaleFactor, i)]
             # print(xl)
 
             xlw = [x * y for x, y in zip(xl, self.cos_window)]      # do windowing of feature
@@ -238,8 +243,7 @@ class Tracker:
             self.hf_full = full_fourier_coeff(self.hf, params['use_gpu'])
 
             if params['use_scale_filter'] and self.nScales > 0:
-                print("SCALE FILTER UPDATE")
-                raise NotImplementedError
+                self.scale_filter.update(frame, self.pos, self.base_target_sz, self.currentScaleFactor)
         else:   # TARGET LOCALIZATION
             old_pos = np.zeros((2))
             for _ in range(0, params['refinement_iterations']):
@@ -248,7 +252,7 @@ class Tracker:
                     self.sample_pos = np.round(self.pos)
                     sample_scale = self.currentScaleFactor*self.scaleFactors
                     xt = [x for i in range(0, len(features))
-                          for x in features[i]["feature"](frame, self.sample_pos, features[i]['img_sample_sz'], sample_scale)] # extract features
+                          for x in features[i]["feature"](frame, self.sample_pos, features[i]['img_sample_sz'], sample_scale, i)] # extract features
                     # if params['use_gpu']
                     xt_proj = project_sample(xt, self.proj_matrix, params['use_gpu'])  # project sample
                     xt_proj = [fmap * cos for fmap, cos in zip(xt_proj, self.cos_window)]  # do windowing
@@ -280,8 +284,7 @@ class Tracker:
 
                     # do scale tracking with scale filter
                     if self.nScales > 0 and params['use_scale_filter']:
-                        # scale_filter_track
-                        raise(NotImplementedError)
+                        scale_change_factor = self.scale_filter.track(frame, self.pos, self.base_target_sz, self.currentScaleFactor)
 
                     # update scale
                     self.currentScaleFactor *= scale_change_factor
@@ -328,8 +331,7 @@ class Tracker:
             else:
                 self.frames_since_last_train += 1
             if params['use_scale_filter']:
-                #scale_filter_update
-                raise(NotImplementedError)
+                self.scale_filter.update(frame, self.pos, self.base_target_sz, self.currentScaleFactor)
 
             # update target size
             self.target_sz = self.base_target_sz*self.currentScaleFactor

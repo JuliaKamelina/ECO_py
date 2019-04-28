@@ -1,32 +1,39 @@
 import numpy as np
 
-class OTBDeep:
+class OTBHC:
     hog_params = {
-        "cell_size": 4,
+        "cell_size": 6,
         "compressed_dim": 10
     }
 
-    cnn_params = {
-        "nn_name": 'vgg16',
-        "output_layer": np.array([3, 14]),
-        "downsample_factor": np.array([2, 1]),  # How much to downsample each output layer
-        "compressed_dim": np.array([16, 64]),   # Compressed dimensionality of each output layer
-        "input_size_mode": 'adaptive',
-        "input_size_scale": 1
+    cn_params = {
+        "tablename": "CNnorm",
+        "useForColor": True,
+        "cell_size": 4,
+        "compressed_dim": 3
+    }
+
+    ic_params = {
+        "tablename": "intensityChannelNorm6",
+        "useForColor": False,
+        "cell_size": 4,
+        "compressed_dim": 3
     }
 
     params = {
         "t_features": [
             {
-                'name': 'get_cnn_layers',
-                # 'feature': (lambda im, pos, sample_sz, scale_factor: get_cnn_layers(im, pos, sample_sz, scale_factor)),
-                'fparams': cnn_params
+                'name': 'get_table_feature',
+                'fparams': cn_params
             },
             {
                 'name': 'get_fhog',
-                # 'feature': (lambda im, pos, sample_sz, scale_factor: get_fhog(im, pos, sample_sz, scale_factor)),
                 'fparams': hog_params
             }
+            # {
+            #     'name': 'get_table_feature',
+            #     'fparams': ic_params
+            # }
         ],
 
         "t_global": {
@@ -37,9 +44,9 @@ class OTBDeep:
 
         # Image sample parameters
         "search_area_shape": 'square',
-        "search_area_scale": 4.5,
-        "min_image_sample_size": 200**2,
-        "max_image_sample_size": 250**2,
+        "search_area_scale": 4.0,
+        "min_image_sample_size": 150**2,
+        "max_image_sample_size": 200**2,
 
         # Detection parameters
         "refinement_iterations": 1,
@@ -47,7 +54,7 @@ class OTBDeep:
         "clamp_position": False,
 
         # Learning parameters
-        "output_sigma_factor": 1/8.0, # 1/12.0
+        "output_sigma_factor": 1/14.0, # 1/16.0
         "learning_rate": 0.009,  #0.01
         "nSamples": 50,
         "sample_replace_strategy": 'lowest_prior',
@@ -60,23 +67,24 @@ class OTBDeep:
         "use_projection_matrix": True,
         "update_projection_matrix": True,
         "proj_init_method": 'pca',
-        "projection_reg": 5e-8,
+        "projection_reg": 1e-7,
 
         # Generative sample space model parameters
         "use_sample_merge": True,
         "sample_merge_type": 'merge',
         "distance_matrix_update_type": 'exact',
+        "minimum_sample_weight": 0.009*(1-0.009)**(2*50),
 
         # Conjugate Gradient parameters
         "CG_iter": 5,
-        "init_CG_iter": 10*15, #15*15
-        "init_GN_iter": 10,    #15
+        "init_CG_iter": 5*15, #10*15
+        "init_GN_iter": 5,    #10
         "CG_use_FR": False,
         "CG_standard_alpha": True,
-        "CG_forgetting_rate": 75,
-        "precond_data_param": 0.3,
-        "precond_reg_param": 0.015,
-        "precond_proj_param": 35,
+        "CG_forgetting_rate": 50,
+        "precond_data_param": 0.75,
+        "precond_reg_param": 0.25,
+        "precond_proj_param": 40,
 
         # Regularization window parameters
         "use_reg_window": True,
@@ -92,11 +100,18 @@ class OTBDeep:
         "interpolation_windowing": False,
 
         # Scale parameters for the translation model
-        "use_scale_filter": False,
-        "number_of_scales": 5,
-        "scale_step": 1.02,
+        "use_scale_filter": True,
+        "scale_sigma_factor": 1 / 16.0,
+        "scale_learning_rate": 0.025,
+        "number_of_scales_filter": 17,        # number of scales
+        "number_of_interp_scales": 33,        # number of interpolated scales
+        "scale_model_factor": 1.0,            # scaling of the scale model
+        "scale_step_filter": 1.02,            # the scale factor of the scale sample patch
+        "scale_model_max_area": 32 * 16,      # maximume area for the scale sample patch
+        "scale_feature": 'HOG4',              # features for the scale filter (only HOG4 supported)
+        "s_num_compressed_dim": 'MAX',        # number of compressed feature dimensions in the scale filter
+        "lambda": 1e-2,                       # scale filter regularization
+        "do_poly_interp": True,
 
-        "visualization": 0,
         "use_gpu": False
     }
-

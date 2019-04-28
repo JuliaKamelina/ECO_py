@@ -125,3 +125,18 @@ def sample_fs(xf, use_gpu=False, grid_sz=None):
             xf_pad = xf_pad[:xf_pad.shape[0]-(tot_pad[0] % 2), :xf_pad.shape[1]-(tot_pad[1] % 2)]
         x = grid_sz[0] * grid_sz[1] * cifft2(xf_pad)
     return x
+
+def resize_DFT(inputdft, desired_len):
+    input_len = len(inputdft)
+    minsz = min(input_len, desired_len)
+
+    scaling = desired_len / input_len
+
+    resize_dft = np.zeros(desired_len, dtype=inputdft.dtype)
+
+    mids = int(np.ceil(minsz / 2))
+    mide = int(np.floor((minsz - 1) / 2))
+
+    resize_dft[:mids] = scaling * inputdft[:mids]
+    resize_dft[-mide:] = scaling * inputdft[-mide:]
+    return resize_dft

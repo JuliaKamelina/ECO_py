@@ -1,16 +1,6 @@
 # ECO-tracker python realization
 
-seq['len'] - where used??
-seq['len'] == seq['num_frames'] ??
-check default_params (init_dafault_params)
-
-I dont have:
-feature_info.dim_block
-feature_info.penalty_block
-
-feature_info["penalty"] == []
-feature_info["dim"] == np.array([])
-
-img_support_sz = []
-feature_sz = []
-feature_dim = []
+```
+cd ./implementation/feature_extraction
+python3 setup.py build_ext --inplace
+````

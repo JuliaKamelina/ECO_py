@@ -45,6 +45,7 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
 
     features = keep_features
 
+    cell_szs = []
     for i in range(0,len(features)):
         if features[i]['name'] == 'get_fhog':
             if not 'nOrients' in features[i]["fparams"].keys():
@@ -52,15 +53,17 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
             features[i]["fparams"]["nDim"] = np.array([3*features[i]["fparams"]["nOrients"] + 5 - 1])
             features[i]["is_cell"] = False
             features[i]["is_cnn"] = False
-            features[i]['feature'] = (lambda im, pos, sample_sz, scale_factor: get_fhog(im, pos, sample_sz, scale_factor))
+            features[i]['feature'] = (lambda im, pos, sample_sz, scale_factor, feat_ind: get_fhog(im, pos, sample_sz, scale_factor, feat_ind))
 
         elif features[i]['name'] == 'get_table_feature':
             cur_path = os.path.dirname(os.path.abspath(__file__))
-            load_path = cur_path + '/lookup_tables' + features[i]["fparams"]["tablename"]
+            load_path = cur_path + '/lookup_tables/' + features[i]["fparams"]["tablename"]
             table = scipy.io.loadmat(load_path)
-            features[i]["fparams"]["nDim"] = table[features[i]["fparams"]["tablename"]].shape[1]
+            features[i]["table"] = table
+            features[i]["fparams"]["nDim"] = [table[features[i]["fparams"]["tablename"]].shape[1]]
             features[i]["is_cell"] = False
-            features[i]["ic_cnn"] = False
+            features[i]["is_cnn"] = False
+            features[i]['feature'] = (lambda im, pos, sample_sz, scale_factor, feat_ind: get_table_feature(im, pos, sample_sz, scale_factor, feat_ind))
 
         elif features[i]['name'] == 'get_colorspace':
             features[i]["fparams"]["nDim"] = 1
@@ -82,7 +85,7 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
 
             features[i]["is_cell"] = True
             features[i]["is_cnn"] = True
-            features[i]['feature'] = (lambda im, pos, sample_sz, scale_factor: get_cnn_layers(im, pos, sample_sz, scale_factor))
+            features[i]['feature'] = (lambda im, pos, sample_sz, scale_factor, feat_ind: get_cnn_layers(im, pos, sample_sz, scale_factor, feat_ind))
         else:
             raise ValueError("Unknown feature type")
 
@@ -94,6 +97,7 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
             else:
                 features[i]["fparams"]["penalty"] = np.zeros((2, 1))
         features[i]["fparams"]["min_cell_size"] = np.min(features[i]["fparams"]["cell_size"])
+        cell_szs.append(features[i]["fparams"]["cell_size"])
 
     cnn_feature_ind = -1
     for i in range(0,len(features)):
@@ -117,14 +121,26 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
             features[cnn_feature_ind]["img_sample_sz"] = np.round(new_img_sample_sz) # == feature_info.img_support_sz
         else:
             features[cnn_feature_ind]["img_sample_sz"] = np.array(img_sample_sz) #net["meta"].normalization.imageSize[0:2]
+    else:
+        max_cell_size = max(cell_szs)
+
+        if size_mode == "same":
+            features[cnn_feature_ind]["img_sample_sz"] = np.ceil(img_sample_sz)
+        elif size_mode == "exact":
+            features[cnn_feature_ind]["img_sample_sz"] = round(img_sample_sz / max_cell_size) * max_cell_size
+        elif size_mode == "odd_cells":
+            new_img_sample_sz = (1 + 2*np.ceil(img_sample_sz / (2*max_cell_size))) * max_cell_size
+            feature_sz_choices = np.array([(new_img_sample_sz.reshape(-1, 1) + np.arange(0, max_cell_size).reshape(1, -1)) // x for x in cell_szs])
+            num_odd_dimensions = np.sum((feature_sz_choices % 2) == 1, axis=(0,1))
+            best_choice = np.argmax(num_odd_dimensions.flatten())
+            features[cnn_feature_ind]["img_sample_sz"] = np.round(new_img_sample_sz + best_choice)
 
     for i in range(0, len(features)):
         if (not features[i]["is_cell"]):
             features[i]["img_sample_sz"] = features[cnn_feature_ind]["img_sample_sz"]
-            features[i]["data_sz"] = np.ceil(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"])
+            features[i]["data_sz"] = np.round(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"])
         else:
-            features[i]["data_sz"] = np.ceil(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"][:, None])
-    # return(features, gparams)
+            features[i]["data_sz"] = np.round(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"][:, None])
 
 
 def feature_normalization(x):
@@ -201,7 +217,7 @@ def forward_pass(x):
     return [pool_avg.asnumpy().transpose(2, 3, 1, 0),
             pool4.asnumpy().transpose(2, 3, 1, 0)]
 
-def get_cnn_layers(im, pos, sample_sz, scale_factor):
+def get_cnn_layers(im, pos, sample_sz, scale_factor, feat_ind=0):
     gparams = settings.params['t_global']
     fparams = settings.params['t_features'][0]['fparams']
 
@@ -228,7 +244,7 @@ def get_cnn_layers(im, pos, sample_sz, scale_factor):
     f2 = feature_normalization(f2)
     return f1, f2
 
-def get_fhog(img, pos, sample_sz, scale_factor):
+def get_fhog(img, pos, sample_sz, scale_factor, feat_ind=0):
     fparams = settings.params['t_features'][1]['fparams']
 
     feat = []
@@ -244,3 +260,54 @@ def get_fhog(img, pos, sample_sz, scale_factor):
         feat.append(H)
     feat = feature_normalization(np.stack(feat, axis=3))
     return [feat]
+
+def integralImage(img):
+    w, h, c = img.shape
+    intImage = np.zeros((w+1, h+1, c), dtype=img.dtype)
+    intImage[1:, 1:, :] = np.cumsum(np.cumsum(img, 0), 1)
+    return intImage
+
+def avg_feature_region(features, region_size):
+    region_area = region_size ** 2
+    if features.dtype == np.float32:
+        maxval = 1.
+    else:
+        maxval = 255
+    intImage = integralImage(features)
+    i1 = np.arange(region_size, features.shape[0]+1, region_size).reshape(-1, 1)
+    i2 = np.arange(region_size, features.shape[1]+1, region_size).reshape(1, -1)
+    region_image = (intImage[i1, i2, :] - intImage[i1, i2-region_size,:] - intImage[i1-region_size, i2, :] + intImage[i1-region_size, i2-region_size, :])  / (region_area * maxval)
+    return region_image
+
+def get_table_feature(img, pos, sample_sz, scale_factor, feat_ind):
+    feature = settings.params['t_features'][feat_ind]
+    name = feature["fparams"]["tablename"]
+
+    feat = []
+    factor = 32
+    den = 8
+
+    if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
+        scale_factor = [scale_factor]
+    for scale in scale_factor:
+        patch = get_sample(img, pos, sample_sz*scale, sample_sz)
+        h, w, c = patch.shape
+        if c == 3:
+            RR = patch[:, :, 0].astype(np.int32)
+            GG = patch[:, :, 1].astype(np.int32)
+            BB = patch[:, :, 2].astype(np.int32)
+            index = RR // den + (GG // den) * factor + (BB // den) * factor * factor
+            f = feature["table"][name][index.flatten()].reshape((h, w, feature["table"][name].shape[1]))
+        else:
+            f = feature["table"][name][patch.flatten()].reshape((h, w, feature["table"][name].shape[1]))
+        if feature["fparams"]["cell_size"] > 1:
+            f = avg_feature_region(f, feature["fparams"]["cell_size"])
+        feat.append(f)
+    feat = feature_normalization(np.stack(feat, axis=3))
+    return [feat]
+
+def _fhog(I, bin_size=8, num_orients=9, clip=0.2, crop=False):
+    soft_bin = -1
+    M, O = gradMag(I.astype(np.float32), 0, True)
+    H = fhog(M, O, bin_size, num_orients, soft_bin, clip)
+    return H

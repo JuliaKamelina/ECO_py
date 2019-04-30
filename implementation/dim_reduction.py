@@ -1,11 +1,6 @@
 import numpy as np
 
-def init_projection_matrix(init_sample, compressed_dim, proj_method, use_gpu = False):
-        if use_gpu:
-            print('use gpu')
-            # xp = cp.get_array_module(init_sample[0])
-        # else:
-        #     xp = np
+def init_projection_matrix(init_sample, compressed_dim, proj_method):
         x = [np.reshape(x, (-1, x.shape[2])) for x in init_sample]
         x = [z - z.mean(0) for z in x]
         proj_matrix = []
@@ -21,10 +16,5 @@ def init_projection_matrix(init_sample, compressed_dim, proj_method, use_gpu = F
                 proj_matrix.append(proj_mat)
         return proj_matrix
 
-def project_sample(x, P, use_gpu=False):
-    if use_gpu:
-        print('use gpu')
-        # xp = cp.get_array_module(x[0])
-    # else:
-    #     xp = np
+def project_sample(x, P):
     return [np.matmul(P_.T, x_) for x_, P_ in zip(x, P)]

@@ -5,15 +5,8 @@ from scipy.signal import convolve
 
 from .fourier_tools import symmetrize_filter
 from .runfiles import settings
-if settings.params['use_gpu']:
-    import cupy as cp
 
 def pcg(A, b, opts, M1, M2, ip, x0, state=None, use_gpu=False):
-    if use_gpu:
-        xp = cp.get_array_module(x0[0][0])
-        print("GPU")
-    else:
-        xp = np
     maxit  = int(opts['maxit'])
     if 'init_forget_factor' not in opts:
         opts['init_forget_factor'] = 1
@@ -84,7 +77,7 @@ def pcg(A, b, opts, M1, M2, ip, x0, state=None, use_gpu=False):
                 alpha = rho / pq
             else:
                 alpha = ip(p, r) / pq
-        if xp.isinf(alpha):
+        if np.isinf(alpha):
             state['flag'] = 4
         # save old r if not using FR formula for betta
         if not opts['CG_use_FR']:
@@ -114,16 +107,10 @@ def diag_precond(hf, M_diag):
         ret.append([x1 / y1 for x1, y1 in zip(x, y)])
     return ret
 
-def inner_product_joint(xf, yf, use_gpu=False):
+def inner_product_joint(xf, yf):
     """
         Computes the joint inner product between two filters and projection matrices
     """
-
-    if use_gpu:
-        print('GPU')
-        xp = cp.get_array_module(xf[0][0])
-    else:
-        xp = np
 
     ip = 0
     for i in range(0, len(xf[0])):
@@ -138,9 +125,7 @@ def lhs_operation_joint(hf, samplesf, reg_filter, init_samplef, XH, init_hf, pro
 
     if use_gpu:
         print("GPU")
-        xp = cp.get_array_module(hf[0][0])
-    else:
-        xp = np
+        raise(NotImplementedError)
 
     hf_out = [[[]] * len(hf[0]) for _ in range(len(hf))]
 
@@ -179,18 +164,10 @@ def lhs_operation_joint(hf, samplesf, reg_filter, init_samplef, XH, init_hf, pro
         # add part needed for convolution
         hf_conv = np.concatenate([hf[i], np.conj(np.rot90(hf[i][:, -reg_pad-1:-1, :], 2))], axis=1)
 
-        if not use_gpu:
-            # do first convolution
-            hf_conv = convolve(hf_conv, reg_filter[i][:, :, np.newaxis, np.newaxis])
-            # do final convolution and put together result
-            hf_out1[i] += convolve(hf_conv[:, :-reg_pad, :], reg_filter[i][:, :, np.newaxis, np.newaxis], 'valid')
-        else:
-            print("GPU (need conv2d)")
-            raise NotImplementedError
-            # do first convolution
-            # hf_conv = convolve2d(hf_conv, reg_filter[i][:,:,cp.newaxis,cp.newaxis])
-            # # do final convolution and put together result
-            # hf_out1[i] += convolve2d(hf_conv[:, :-reg_pad, :], reg_filter[i][:,:,cp.newaxis,cp.newaxis], 'valid')
+        # do first convolution
+        hf_conv = convolve(hf_conv, reg_filter[i][:, :, np.newaxis, np.newaxis])
+        # do final convolution and put together result
+        hf_out1[i] += convolve(hf_conv[:, :-reg_pad, :], reg_filter[i][:, :, np.newaxis, np.newaxis], 'valid')
     
     # B * P
     BP_list = [np.matmul(init_hf_.transpose(0, 1, 3, 2), np.matmul(p.T, init_samp))
@@ -235,9 +212,7 @@ def lhs_operation(hf, samplesf, reg_filter, sample_weights, use_gpu=False):
         This is the left-hand-side operation in Conjugate Gradient
     """
     if use_gpu:
-        xp = cp.get_array_module(hf[0][0])
-    else:
-        xp = np
+        raise(NotImplementedError)
 
     num_features = len(hf[0])
     filter_sz = np.zeros((num_features, 2), np.int32)
@@ -255,20 +230,20 @@ def lhs_operation(hf, samplesf, reg_filter, sample_weights, use_gpu=False):
     # implements: A.H diag(sample_weights) A f
 
     # sum over all features and feature blocks
-    sh = xp.matmul(hf[0][k1].transpose(0, 1, 3, 2), samplesf[k1])
+    sh = np.matmul(hf[0][k1].transpose(0, 1, 3, 2), samplesf[k1])
     pad_sz = [[]] * num_features
     for i in block_inds:
         pad_sz[i] = ((output_sz - np.array([hf[0][i].shape[0], hf[0][i].shape[1]*2-1])) / 2).astype(np.int32)
-        sh[pad_sz[i][0]:output_sz[0]-pad_sz[i][0], pad_sz[i][1]:, :, :] += xp.matmul(hf[0][i].transpose(0, 1, 3, 2), samplesf[i])
+        sh[pad_sz[i][0]:output_sz[0]-pad_sz[i][0], pad_sz[i][1]:, :, :] += np.matmul(hf[0][i].transpose(0, 1, 3, 2), samplesf[i])
 
     # weight all the samples
     sh = sample_weights.reshape(1, 1, 1, -1) * sh
 
     # multiply with the transpose
     hf_out = [[]] * num_features
-    hf_out[k1] = xp.matmul(xp.conj(samplesf[k1]), sh.transpose(0, 1, 3, 2))
+    hf_out[k1] = np.matmul(np.conj(samplesf[k1]), sh.transpose(0, 1, 3, 2))
     for i in block_inds:
-        hf_out[i] = xp.matmul(xp.conj(samplesf[i]), sh[pad_sz[i][0]:output_sz[0]-pad_sz[i][0], pad_sz[i][1]:, :, :].transpose(0, 1, 3, 2))
+        hf_out[i] = np.matmul(np.conj(samplesf[i]), sh[pad_sz[i][0]:output_sz[0]-pad_sz[i][0], pad_sz[i][1]:, :, :].transpose(0, 1, 3, 2))
 
     # compute the operation corresponding to the regularization term (convolve each feature dimension
     # with the DFT of w, and the transposed operation) add the regularization part
@@ -277,32 +252,22 @@ def lhs_operation(hf, samplesf, reg_filter, sample_weights, use_gpu=False):
         reg_pad = min(reg_filter[i].shape[1] - 1, hf[0][i].shape[1]-1)
 
         # add part needed for convolution
-        hf_conv = xp.concatenate([hf[0][i], xp.conj(xp.rot90(hf[0][i][:, -reg_pad-1:-1, :], 2))], axis=1)
+        hf_conv = np.concatenate([hf[0][i], np.conj(np.rot90(hf[0][i][:, -reg_pad-1:-1, :], 2))], axis=1)
 
-        if not use_gpu:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=FutureWarning)
-                # do first convolution
-                hf_conv = convolve(hf_conv, reg_filter[i][:,:,np.newaxis,np.newaxis])
-
-                # do final convolution and put together result
-                hf_out[i] += convolve(hf_conv[:, :-reg_pad, :], reg_filter[i][:,:,np.newaxis,np.newaxis], 'valid')
-        else:
-            print("convolve2D")
-            raise(NotImplementedError)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
             # do first convolution
-            # hf_conv = convolve2d(hf_conv, reg_filter[i][:,:,cp.newaxis,cp.newaxis])
-
-            # # do final convolution and put together result
-            # hf_out[i] += convolve2d(hf_conv[:, :-reg_pad, :], reg_filter[i][:,:,cp.newaxis,cp.newaxis], 'valid')
+            hf_conv = convolve(hf_conv, reg_filter[i][:,:,np.newaxis,np.newaxis])
+            # do final convolution and put together result
+            hf_out[i] += convolve(hf_conv[:, :-reg_pad, :], reg_filter[i][:,:,np.newaxis,np.newaxis], 'valid')
     return [hf_out]
 
 def train_joint(hf, projection_matrix, xlf, yf, reg_filter, sample_energy, reg_energy, proj_energy, init_CG_opts):
     params = settings.params
 
     if params["use_gpu"]:
-        # xp = cp.get_array_module(hf[0][0])
         print("GPU")
+        raise(NotImplementedError)
 
     lf_ind = [x.shape[0] * (x.shape[1]-1) for x in hf[0]]  # Index for the start of the last column of frequencies
     init_samplef = xlf
@@ -334,26 +299,22 @@ def train_joint(hf, projection_matrix, xlf, yf, reg_filter, sample_energy, reg_e
                        None, # M2
                        inner_product_joint,
                        hf)
-        hf[0] = symmetrize_filter(hf[0], params["use_gpu"])
+        hf[0] = symmetrize_filter(hf[0])
         projection_matrix = [x + y for x, y in zip(projection_matrix, hf[1])]
 
     # extract filter
     hf = hf[0]
     return hf, projection_matrix
 
-def inner_product_filter(xf, yf, use_gpu=False):
+def inner_product_filter(xf, yf):
     """
         computes the inner product between two filters
     """
-    if use_gpu:
-        xp = cp.get_array_module(xf[0][0])
-    else:
-        xp = np
 
     ip = 0
     for i in range(len(xf[0])):
-        ip += 2 * xp.vdot(xf[0][i].flatten(), yf[0][i].flatten()) - xp.vdot(xf[0][i][:, -1, :].flatten(), yf[0][i][:, -1, :].flatten())
-    return xp.real(ip)
+        ip += 2 * np.vdot(xf[0][i].flatten(), yf[0][i].flatten()) - np.vdot(xf[0][i][:, -1, :].flatten(), yf[0][i][:, -1, :].flatten())
+    return np.real(ip)
 
 def train_filter(hf, samplesf, yf, reg_filter, sample_weights, sample_energy, reg_energy, CG_opts, CG_state):
     """
@@ -362,17 +323,15 @@ def train_filter(hf, samplesf, yf, reg_filter, sample_weights, sample_energy, re
     params = settings.params
 
     if params['use_gpu']:
-        xp = cp.get_array_module(hf[0][0])
-    else:
-        xp = np
+        raise(NotImplementedError)
 
     # construct the right hand side vector (A^H weight yf)
-    rhs_samplef = [xp.matmul(x, sample_weights) for x in samplesf]
-    rhs_samplef = [(xp.conj(x) * y[:,:,xp.newaxis,xp.newaxis])
+    rhs_samplef = [np.matmul(x, sample_weights) for x in samplesf]
+    rhs_samplef = [(np.conj(x) * y[:,:,np.newaxis,np.newaxis])
                    for x, y in zip(rhs_samplef, yf)]
 
     # construct preconditioner
-    diag_M = [(1 - params['precond_reg_param']) * (params['precond_data_param'] * m + (1-params['precond_data_param'])*xp.mean(m, 2, keepdims=True)) +
+    diag_M = [(1 - params['precond_reg_param']) * (params['precond_data_param'] * m + (1-params['precond_data_param'])*np.mean(m, 2, keepdims=True)) +
               params['precond_reg_param'] * reg_energy_ for m, reg_energy_ in zip(sample_energy, reg_energy)]
     hf, _, CG_state = pcg(
         lambda x: lhs_operation(x, samplesf, reg_filter, sample_weights, params['use_gpu']), # A

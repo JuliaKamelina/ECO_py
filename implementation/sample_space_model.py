@@ -1,7 +1,5 @@
 import numpy as np
 from .runfiles import settings
-if settings.params['use_gpu']:
-    import cupy as cp
 
 def find_gram_vector(samplesf, new_sample, num_training_samples, num_samples):
     # Find the inner product of the new sample with the existing samples
@@ -80,10 +78,6 @@ def merge_samples(sample1, sample2, w1, w2, sample_merge_type):
 
 def update_sample_space_model(samplesf, new_train_sample, num_training_samples, distance_matrix, gram_matrix, prior_weights):
     params = settings.params
-    # if config.use_gpu:
-    #         xp = cp.get_array_module(samplesf[0])
-    #     else:
-    #         xp = np
 
     num_feature_blocks = len(new_train_sample)
     gram_vector = find_gram_vector(samplesf, new_train_sample, num_training_samples, params["nSamples"])

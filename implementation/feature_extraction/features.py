@@ -9,8 +9,6 @@ from mxnet.gluon.nn import AvgPool2D
 from ._gradient import *
 
 from ..runfiles import settings
-if settings.params['use_gpu']:
-    import cupy as cp
 
 def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
     if (size_mode == ''):

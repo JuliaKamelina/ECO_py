@@ -230,7 +230,7 @@ class Tracker:
             if params['update_projection_matrix']:
                 # init gauss-newton optimiztion of filter and proj matrix
                 self.hf, self.proj_matrix = train_joint(self.hf, self.proj_matrix, xlf, self.yf, self.reg_filter, self.sample_energy, self.reg_energy, proj_energy, self.init_CG_opts)
-                xlf_proj = project_sample(xlf, self.proj_matrix, params["use_gpu"]) # reproject
+                xlf_proj = project_sample(xlf, self.proj_matrix) # reproject
                 for i in range(0, self.num_feature_blocks):
                     self.samplesf[i][:, :, :, 0:1] = xlf_proj[i]  # insert new sample
 
@@ -240,7 +240,7 @@ class Tracker:
                     for i in range(0, self.num_feature_blocks):
                         new_train_sample_norm += 2 * np.real(np.vdot(xlf_proj[i].flatten(), xlf_proj[i].flatten()))
                     self.gram_matrix[0, 0] = new_train_sample_norm
-            self.hf_full = full_fourier_coeff(self.hf, params['use_gpu'])
+            self.hf_full = full_fourier_coeff(self.hf)
 
             if params['use_scale_filter'] and self.nScales > 0:
                 self.scale_filter.update(frame, self.pos, self.base_target_sz, self.currentScaleFactor)
@@ -253,10 +253,10 @@ class Tracker:
                     sample_scale = self.currentScaleFactor*self.scaleFactors
                     xt = [x for i in range(0, len(features))
                           for x in features[i]["feature"](frame, self.sample_pos, features[i]['img_sample_sz'], sample_scale, i)] # extract features
-                    # if params['use_gpu']
-                    xt_proj = project_sample(xt, self.proj_matrix, params['use_gpu'])  # project sample
+
+                    xt_proj = project_sample(xt, self.proj_matrix)  # project sample
                     xt_proj = [fmap * cos for fmap, cos in zip(xt_proj, self.cos_window)]  # do windowing
-                    xtf_proj = [cfft2(x, params['use_gpu']) for x in xt_proj]  # fouries series
+                    xtf_proj = [cfft2(x) for x in xt_proj]  # fouries series
                     xtf_proj = interpolate_dft(xtf_proj, self.interp1_fs, self.interp2_fs)  # interpolate features
 
                     # compute convolution for each feature block in the fourier domain, then sum over blocks
@@ -270,7 +270,7 @@ class Tracker:
                                   int(self.pad_sz[ind][1]):int(self.output_sz[0]-self.pad_sz[ind][1])] += self.scores_fs_feat[ind]
 
                     # OPTIMIZE SCORE FUNCTION with Newnot's method.
-                    trans_row, trans_col, scale_idx = optimize_scores(scores_fs, params["newton_iterations"], params['use_gpu'])
+                    trans_row, trans_col, scale_idx = optimize_scores(scores_fs, params["newton_iterations"])
 
                     # compute the translation vector in pixel-coordinates and round to the cloest integer pixel
                     translation_vec = np.array([trans_row, trans_col])*(self.img_support_sz/self.output_sz)*self.currentScaleFactor*self.scaleFactors[scale_idx]
@@ -303,7 +303,7 @@ class Tracker:
 
                 # shift sample target is centred
                 shift_samp = 2*np.pi*(self.pos - self.sample_pos)/(sample_scale*self.img_support_sz)
-                xlf_proj = shift_sample(xlf_proj, shift_samp, self.kx, self.ky, params['use_gpu'])
+                xlf_proj = shift_sample(xlf_proj, shift_samp, self.kx, self.ky)
 
             # update the samplesf to include the new sample. The distance matrix, kernel matrix and prior weight are also updated
             merged_sample, new_sample, merged_sample_id, new_sample_id = update_sample_space_model(self.samplesf, xlf_proj, self.num_training_samples, self.distance_matrix, self.gram_matrix, self.prior_weights)

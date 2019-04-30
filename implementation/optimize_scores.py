@@ -1,29 +1,21 @@
 import numpy as np
 
 from .fourier_tools import sample_fs
-from .runfiles import settings
-if settings.params['use_gpu']:
-    import cupy as cp
 
-def optimize_scores(scores_fs, iterations, use_gpu=False):
+def optimize_scores(scores_fs, iterations):
     """
         Maximizes the continuous convolution response (classification scores)
     """
-    if use_gpu:
-        xp = cp.get_array_module(scores_fs)
-    else:
-        xp = np
-
     # find output sz
     if len(scores_fs.shape) == 2:
-        scores_fs = scores_fs[:,:, xp.newaxis]
+        scores_fs = scores_fs[:,:, np.newaxis]
     output_sz = scores_fs.shape[:2]
 
     # grid search step by finding the maximum in the sampled response for each scale
     sampled_scores = sample_fs(scores_fs)
-    init_max_score = xp.max(sampled_scores, axis=(0, 1))
-    max_idx = xp.reshape(sampled_scores, (-1, sampled_scores.shape[2])).argmax(axis=0)
-    max_pos = xp.column_stack(xp.unravel_index(max_idx, sampled_scores[:,:,0].shape))
+    init_max_score = np.max(sampled_scores, axis=(0, 1))
+    max_idx = np.reshape(sampled_scores, (-1, sampled_scores.shape[2])).argmax(axis=0)
+    max_pos = np.column_stack(np.unravel_index(max_idx, sampled_scores[:,:,0].shape))
     row = max_pos[:, 0:1]
     col = max_pos[:, 1:2]
 
@@ -38,37 +30,37 @@ def optimize_scores(scores_fs, iterations, use_gpu=False):
     max_pos_x = init_pos_x
 
     # construct grid
-    ky = xp.arange(- np.ceil((output_sz[0] - 1)/2), np.floor(output_sz[0]-1)/2 + 1).reshape(1, -1)
-    kx = xp.arange(- np.ceil((output_sz[1] - 1)/2), np.floor(output_sz[1]-1)/2 + 1).reshape(-1, 1)
+    ky = np.arange(- np.ceil((output_sz[0] - 1)/2), np.floor(output_sz[0]-1)/2 + 1).reshape(1, -1)
+    kx = np.arange(- np.ceil((output_sz[1] - 1)/2), np.floor(output_sz[1]-1)/2 + 1).reshape(-1, 1)
 
     # pre-compute complex exponential
-    exp_iky = xp.exp(1j * max_pos_y * ky)[:, xp.newaxis, :].astype(xp.complex64)
-    exp_ikx = xp.exp(1j * kx * max_pos_x.T).transpose()[:, :, xp.newaxis].astype(xp.complex64)
+    exp_iky = np.exp(1j * max_pos_y * ky)[:, np.newaxis, :].astype(np.complex64)
+    exp_ikx = np.exp(1j * kx * max_pos_x.T).transpose()[:, :, np.newaxis].astype(np.complex64)
 
     ky2 = ky * ky
     kx2 = kx * kx
 
-    max_pos_y = max_pos_y[:, :, xp.newaxis]
-    max_pos_x = max_pos_x[:, :, xp.newaxis]
+    max_pos_y = max_pos_y[:, :, np.newaxis]
+    max_pos_x = max_pos_x[:, :, np.newaxis]
 
-    init_pos_y = init_pos_y[:, :, xp.newaxis]
-    init_pos_x = init_pos_x[:, :, xp.newaxis]
+    init_pos_y = init_pos_y[:, :, np.newaxis]
+    init_pos_x = init_pos_x[:, :, np.newaxis]
 
     scores_fs = scores_fs.transpose(2, 0, 1)
     for _ in range(iterations):
         # compute gradient
         ky_exp_ky = ky * exp_iky
         kx_exp_kx = kx * exp_ikx
-        y_resp = xp.matmul(exp_iky, scores_fs)
-        resp_x = xp.matmul(scores_fs, exp_ikx)
-        grad_y = -xp.imag(xp.matmul(ky_exp_ky, resp_x))
-        grad_x = -xp.imag(xp.matmul(y_resp, kx_exp_kx))
+        y_resp = np.matmul(exp_iky, scores_fs)
+        resp_x = np.matmul(scores_fs, exp_ikx)
+        grad_y = -np.imag(np.matmul(ky_exp_ky, resp_x))
+        grad_x = -np.imag(np.matmul(y_resp, kx_exp_kx))
 
         # compute hessian
-        ival = 1j * xp.matmul(exp_iky, resp_x)
-        H_yy = xp.real(-xp.matmul(ky2 * exp_iky, resp_x) + ival)
-        H_xx = xp.real(-xp.matmul(y_resp, kx2 * exp_ikx) + ival)
-        H_xy = xp.real(-xp.matmul(ky_exp_ky, xp.matmul(scores_fs, kx_exp_kx)))
+        ival = 1j * np.matmul(exp_iky, resp_x)
+        H_yy = np.real(-np.matmul(ky2 * exp_iky, resp_x) + ival)
+        H_xx = np.real(-np.matmul(y_resp, kx2 * exp_ikx) + ival)
+        H_xy = np.real(-np.matmul(ky_exp_ky, np.matmul(scores_fs, kx_exp_kx)))
         det_H = H_yy * H_xx - H_xy * H_xy
 
         # compute new position using newtons method
@@ -76,11 +68,11 @@ def optimize_scores(scores_fs, iterations, use_gpu=False):
         max_pos_x = max_pos_x - (H_yy * grad_x - H_xy * grad_y) / det_H
 
         # evaluate maximum
-        exp_iky = xp.exp(1j * ky * max_pos_y).astype(xp.complex64)
-        exp_ikx = xp.exp(1j * kx * max_pos_x).astype(xp.complex64)
+        exp_iky = np.exp(1j * ky * max_pos_y).astype(np.complex64)
+        exp_ikx = np.exp(1j * kx * max_pos_x).astype(np.complex64)
 
     #  Evaluate the Fourier series at the estimated locations to find the corresponding scores.
-    max_score = xp.real(xp.matmul(xp.matmul(exp_iky, scores_fs), exp_ikx)).flatten()
+    max_score = np.real(np.matmul(np.matmul(exp_iky, scores_fs), exp_ikx)).flatten()
     # check for scales that have not increased in score
     idx = max_score < init_max_score
     max_score[idx] = init_max_score[idx]
@@ -88,14 +80,14 @@ def optimize_scores(scores_fs, iterations, use_gpu=False):
     max_pos_x[idx] = init_pos_x[idx]
 
     #  Find the scale with the maximum response
-    scale_idx = xp.argmax(max_score)
+    scale_idx = np.argmax(max_score)
     max_scale_response = max_score[scale_idx]
 
     # Scale the coordinate system to output_sz
     disp_row = ((max_pos_y[scale_idx][0][0] + np.pi) % (2 * np.pi) - np.pi) / (2 * np.pi) * output_sz[0]
     disp_col = ((max_pos_x[scale_idx][0][0] + np.pi) % (2 * np.pi) - np.pi) / (2 * np.pi) * output_sz[1]
 
-    if xp is np:
+    if np is np:
         return disp_row, disp_col, scale_idx
     else:
         return disp_row.get(), disp_col.get(), scale_idx.get()

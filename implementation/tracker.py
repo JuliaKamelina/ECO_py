@@ -187,22 +187,46 @@ class Tracker:
         if iter == 0:  # INIT AND UPDATE TRACKER
             self.sample_pos = np.round(self.pos)
             sample_scale = self.currentScaleFactor
+            t = time.clock()
             xl = [x for i in range(0, len(features))
                     for x in features[i]["feature"](frame, self.sample_pos, features[i]['img_sample_sz'], self.currentScaleFactor, i)]
             # print(xl)
+            print("features time: ", time.clock() - t)
 
+            t = time.clock()
             xlw = [x * y for x, y in zip(xl, self.cos_window)]      # do windowing of feature
+            print("windowing: ", time.clock() - t)
+
+            t = time.clock()
             xlf = [cfft2(x) for x in xlw]                      # compute the fourier series
+            print("fourier: ", time.clock() - t)
+
+            t = time.clock()
             xlf = interpolate_dft(xlf, self.interp1_fs, self.interp2_fs) # interpolate features
+            print("interpolate: ", time.clock() - t)
+
+            t = time.clock()
             xlf = compact_fourier_coeff(xlf)                   # new sample to add
+            print("compact_fourier_coeff: ", time.clock() - t)
+
             # shift sample
+            t = time.clock()
             shift_samp = 2 * np.pi * (self.pos - self.sample_pos) / (sample_scale * self.img_support_sz) # img_sample_sz
             xlf = shift_sample(xlf, shift_samp, self.kx, self.ky)
-            self.proj_matrix = init_projection_matrix(xl, self.sample_dim, params['proj_init_method'])  # init projection matrix
-            xlf_proj = project_sample(xlf, self.proj_matrix)  # project sample
+            print("shift sample: ", time.clock() - t)
 
+            t = time.clock()
+            self.proj_matrix = init_projection_matrix(xl, self.sample_dim, params['proj_init_method'])  # init projection matrix
+            print("init proj matrix: ", time.clock() - t)
+
+            t = time.clock()
+            xlf_proj = project_sample(xlf, self.proj_matrix)  # project sample
+            print("project sample: ", time.clock() - t)
+
+            t = time.clock()
             merged_sample, new_sample, merged_sample_id, new_sample_id = update_sample_space_model(self.samplesf, xlf_proj, self.num_training_samples, 
                                                                                                     self.distance_matrix, self.gram_matrix, self.prior_weights)
+            print("update sample space: ", time.clock() - t)
             self.num_training_samples += 1
 
             if params["update_projection_matrix"]:
@@ -214,6 +238,7 @@ class Tracker:
 
             # init CG params
             self.CG_state = None
+            t = time.clock()
             if params["update_projection_matrix"]:
                 self.init_CG_opts['maxit'] = np.ceil(params["init_CG_iter"] / params["init_GN_iter"])
                 self.hf = [[[]] * self.num_feature_blocks for _ in range(2)]
@@ -223,27 +248,37 @@ class Tracker:
             else:
                 self.CG_opts['maxit'] = params["init_CG_iter"]
                 self.hf = [[[]] * self.num_feature_blocks]
+            print("init CG params: ", time.clock() - t)
 
             # init filter
             for i in range(0, self.num_feature_blocks):
                 self.hf[0][i] = np.zeros((int(self.filter_sz[i][0]), int((self.filter_sz[i][1]+1)/2), int(self.sample_dim[i]), 1), dtype=np.complex64)
             if params['update_projection_matrix']:
                 # init gauss-newton optimiztion of filter and proj matrix
+                t = time.clock()
                 self.hf, self.proj_matrix = train_joint(self.hf, self.proj_matrix, xlf, self.yf, self.reg_filter, self.sample_energy, self.reg_energy, proj_energy, self.init_CG_opts)
+                print("train joint: ", time.clock() - t)
+
                 xlf_proj = project_sample(xlf, self.proj_matrix) # reproject
                 for i in range(0, self.num_feature_blocks):
                     self.samplesf[i][:, :, :, 0:1] = xlf_proj[i]  # insert new sample
 
                 if params['distance_matrix_update_type'] == 'exact':
                     # find the norm of reproj sample
+                    t = time.clock()
                     new_train_sample_norm = 0
                     for i in range(0, self.num_feature_blocks):
                         new_train_sample_norm += 2 * np.real(np.vdot(xlf_proj[i].flatten(), xlf_proj[i].flatten()))
                     self.gram_matrix[0, 0] = new_train_sample_norm
+                    print("new train sample norm: ", time.clock() - t)
+            t = time.clock()
             self.hf_full = full_fourier_coeff(self.hf)
+            print("full fourier coeff: ", time.clock() - t)
 
             if params['use_scale_filter'] and self.nScales > 0:
+                t = time.clock()
                 self.scale_filter.update(frame, self.pos, self.base_target_sz, self.currentScaleFactor)
+                print("scale filter update: ", time.clock() - t)
         else:   # TARGET LOCALIZATION
             old_pos = np.zeros((2))
             for _ in range(0, params['refinement_iterations']):
@@ -251,15 +286,29 @@ class Tracker:
                     old_pos = self.pos
                     self.sample_pos = np.round(self.pos)
                     sample_scale = self.currentScaleFactor*self.scaleFactors
+                    t = time.clock()
                     xt = [x for i in range(0, len(features))
                           for x in features[i]["feature"](frame, self.sample_pos, features[i]['img_sample_sz'], sample_scale, i)] # extract features
+                    print("features: ", time.clock() - t)
 
+                    t = time.clock()
                     xt_proj = project_sample(xt, self.proj_matrix)  # project sample
+                    print("project sample: ", time.clock() - t)
+
+                    t = time.clock()
                     xt_proj = [fmap * cos for fmap, cos in zip(xt_proj, self.cos_window)]  # do windowing
+                    print("windowing: ", time.clock() - t)
+
+                    t = time.clock()
                     xtf_proj = [cfft2(x) for x in xt_proj]  # fouries series
+                    print("fourier series: ", time.clock() - t)
+
+                    t = time.clock()
                     xtf_proj = interpolate_dft(xtf_proj, self.interp1_fs, self.interp2_fs)  # interpolate features
+                    print("interpolate features: ", time.clock() - t)
 
                     # compute convolution for each feature block in the fourier domain, then sum over blocks
+                    t = time.clock()
                     self.scores_fs_feat = [[]]*self.num_feature_blocks
                     self.scores_fs_feat[self.k_max] = np.sum(self.hf_full[self.k_max]*xtf_proj[self.k_max], 2)
                     scores_fs = self.scores_fs_feat[self.k_max]
@@ -268,13 +317,18 @@ class Tracker:
                         self.scores_fs_feat[ind] = np.sum(self.hf_full[ind]*xtf_proj[ind], 2)
                         scores_fs[int(self.pad_sz[ind][0]):int(self.output_sz[0]-self.pad_sz[ind][0]),
                                   int(self.pad_sz[ind][1]):int(self.output_sz[0]-self.pad_sz[ind][1])] += self.scores_fs_feat[ind]
+                    print("compute convolution for each feature block: ", time.clock() - t)
 
                     # OPTIMIZE SCORE FUNCTION with Newnot's method.
+                    t = time.clock()
                     trans_row, trans_col, scale_idx = optimize_scores(scores_fs, params["newton_iterations"])
+                    print("optimize scores: ", time.clock() - t)
 
                     # compute the translation vector in pixel-coordinates and round to the cloest integer pixel
+                    t = time.clock()
                     translation_vec = np.array([trans_row, trans_col])*(self.img_support_sz/self.output_sz)*self.currentScaleFactor*self.scaleFactors[scale_idx]
                     scale_change_factor = self.scaleFactors[scale_idx]
+                    print("translation vector: ", time.clock() - t)
 
                     # update_position
                     self.pos = self.sample_pos + translation_vec
@@ -302,11 +356,15 @@ class Tracker:
                 xlf_proj = [xf[:, :(xf.shape[1]+1)//2, :, scale_idx:scale_idx+1] for xf in xtf_proj]
 
                 # shift sample target is centred
+                t = time.clock()
                 shift_samp = 2*np.pi*(self.pos - self.sample_pos)/(sample_scale*self.img_support_sz)
                 xlf_proj = shift_sample(xlf_proj, shift_samp, self.kx, self.ky)
+                print("shift sample: ", time.clock() - t)
 
             # update the samplesf to include the new sample. The distance matrix, kernel matrix and prior weight are also updated
+            t = time.clock()
             merged_sample, new_sample, merged_sample_id, new_sample_id = update_sample_space_model(self.samplesf, xlf_proj, self.num_training_samples, self.distance_matrix, self.gram_matrix, self.prior_weights)
+            print("update sample space: ", time.clock() - t)
             if self.num_training_samples < self.nSamples:
                 self.num_training_samples += 1
 
@@ -319,14 +377,20 @@ class Tracker:
 
             # train filter
             if iter < params['skip_after_frame'] or self.frames_since_last_train >= params['train_gap']:
+                t = time.clock()
                 new_sample_energy = [np.real(xlf * np.conj(xlf)) for xlf in xlf_proj]
                 self.CG_opts['maxit'] = params['CG_iter']
                 self.sample_energy = [(1 - params['learning_rate'])*se + params['learning_rate']*nse
                                  for se, nse in zip(self.sample_energy, new_sample_energy)]
+                print("sample energy: ", time.clock() - t)
 
                 # do CG opt for filter
+                t = time.clock()
                 self.hf, self.CG_state = train_filter(self.hf, self.samplesf, self.yf, self.reg_filter, self.prior_weights, self.sample_energy, self.reg_energy, self.CG_opts, self.CG_state)
+                print("train filter: ", time.clock() - t)
+                t = time.clock()
                 self.hf_full = full_fourier_coeff(self.hf)
+                print("full fourier coeff: ", time.clock() - t)
                 self.frames_since_last_train = 0
             else:
                 self.frames_since_last_train += 1

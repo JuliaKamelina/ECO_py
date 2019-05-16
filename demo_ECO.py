@@ -37,5 +37,7 @@ for i, frame in enumerate(frames):
                           (int(gt_bbox[0]), int(gt_bbox[2])),
                           (int(gt_bbox[1]), int(gt_bbox[3])),
                           (0, 255, 0), 1)
+    print(ground_truth[i])
+    print("#######################################################################")
     cv2.imshow('', frame)
     cv2.waitKey(1)

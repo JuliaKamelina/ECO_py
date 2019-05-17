@@ -98,7 +98,7 @@ class Tracker:
         img_sample_sz[0] = np.ceil(img_sample_sz[0]) if img_sample_sz[0] - np.floor(img_sample_sz[0]) > 0.5 else np.floor(img_sample_sz[0])
         img_sample_sz[1] = np.ceil(img_sample_sz[1]) if img_sample_sz[1] - np.floor(img_sample_sz[1]) > 0.5 else np.floor(img_sample_sz[1])
 
-        init_features(self.is_color_image, img_sample_sz, 'odd_cells')
+        settings.params["t_features"] = features = init_features(self.is_color_image, img_sample_sz, 'odd_cells')
 
         # Set feature info
         self.img_support_sz = features[0]["img_sample_sz"]

@@ -3,7 +3,10 @@ import os.path
 
 def load_video_info(path):
     gt_path = "{}/groundtruth_rect.txt".format(path)
-    ground_truth = np.loadtxt(gt_path)
+    try:
+        ground_truth = np.loadtxt(gt_path)
+    except:
+        ground_truth = np.loadtxt(gt_path, delimiter=",")
 
     seq = dict()
     seq["format"] = "otb"

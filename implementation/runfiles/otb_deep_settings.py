@@ -32,7 +32,8 @@ class OTBDeep:
         "t_global": {
             "normalize_power": 2,    # Lp normalization with this p
             "normalize_size": True,  # Also normalize with respect to the spatial size of the feature
-            "normalize_dim": True   # Also normalize with respect to the dimensionality of the feature
+            "normalize_dim": True,   # Also normalize with respect to the dimensionality of the feature
+            "square_root_normalization": False
         },
 
         # Image sample parameters

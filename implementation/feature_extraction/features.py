@@ -142,10 +142,10 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
     for i in range(0, len(features)):
         if (not features[i]["is_cell"]):
             features[i]["img_sample_sz"] = features[cnn_feature_ind]["img_sample_sz"]
-            features[i]["data_sz"] = np.round(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"])
+            features[i]["data_sz"] = features[i]["img_sample_sz"]//features[i]["fparams"]["cell_size"]
         else:
-            features[i]["data_sz"] = np.round(features[i]["img_sample_sz"]/features[i]["fparams"]["cell_size"][:, None])
-
+            features[i]["data_sz"] = features[i]["img_sample_sz"]//features[i]["fparams"]["cell_size"][:, None]
+    return features
 
 def feature_normalization(x):
     gparams = settings.params['t_global']
@@ -169,7 +169,10 @@ def get_sample(im, pos, img_sample_sz, output_sz):
     y_min = max(0, int(y.min()))
     y_max = min(im.shape[0], int(y.max()))
     # extract image
-    im_patch = im[y_min:y_max, x_min:x_max, :]
+    if len(im) == 3:
+        im_patch = im[y_min:y_max, x_min:x_max, :]
+    else:
+        im_patch = im[y_min:y_max, x_min:x_max]
     left = right = top = down = 0
     if x.min() < 0:
         left = int(abs(x.min()))
@@ -230,7 +233,7 @@ def get_cnn_layers(im, pos, sample_sz, scale_factor, feat_ind=0):
     penalty = fparams["penalty"]
     min_cell_size = np.min(cell_size)
 
-    if im.shape[2] == 1:
+    if len(im.shape) == 2:
         im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
     if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
         scale_factor = [scale_factor]

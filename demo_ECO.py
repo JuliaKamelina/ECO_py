@@ -11,7 +11,7 @@ from implementation.utils import load_video_info, get_sequence_info
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-video_path = "{}/sequences/Couple".format(cur_path)
+video_path = "{}/sequences/Car1".format(cur_path)
 seq, ground_truth = load_video_info(video_path)
 seq = get_sequence_info(seq)
 frames = [np.array(Image.open(f)) for f in seq["image_files"]]

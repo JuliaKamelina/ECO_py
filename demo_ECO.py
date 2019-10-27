@@ -18,26 +18,29 @@ frames = [np.array(Image.open(f)) for f in seq["image_files"]]
 is_color = True if (len(frames[0].shape) == 3) else False
 tracker = Tracker(seq, frames[0], is_color)
 for i, frame in enumerate(frames):
-    bbox, time = tracker.Track(frame, i)
-    print(bbox)
+    if i == 0:
+        bbox, time = tracker.init_tracker(frame)
+    else:
+        bbox, time = tracker.track(frame, i)
+    print('bb: ', bbox)
     print(time)
     if is_color:
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     else:
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
     frame = cv2.rectangle(frame,
-                          (int(bbox[0]), int(bbox[2])),
-                          (int(bbox[1]), int(bbox[3])),
+                          (int(bbox[0]), int(bbox[1])),
+                          (int(bbox[2]), int(bbox[3])),
                           (0, 255, 255), 1)
-    gt_bbox = (ground_truth[i, 0], 
-               ground_truth[i, 0] + ground_truth[i, 2],
+    gt_bbox = (ground_truth[i, 0],
                ground_truth[i, 1],
+               ground_truth[i, 0] + ground_truth[i, 2],
                ground_truth[i, 1] + ground_truth[i, 3])
     frame = cv2.rectangle(frame,
-                          (int(gt_bbox[0]), int(gt_bbox[2])),
-                          (int(gt_bbox[1]), int(gt_bbox[3])),
+                          (int(gt_bbox[0]), int(gt_bbox[1])),
+                          (int(gt_bbox[2]), int(gt_bbox[3])),
                           (0, 255, 0), 1)
-    print(ground_truth[i])
+    print('gt: ', gt_bbox)
     print("#######################################################################")
-    cv2.imshow('', frame)
-    cv2.waitKey(1)
+    # cv2.imshow('', frame)
+    # cv2.waitKey(1)

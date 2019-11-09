@@ -11,7 +11,8 @@ from implementation.utils import load_video_info, get_sequence_info
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-video_path = "{}/sequences/Car1".format(cur_path)
+#video_path = "{}/sequences/Car1".format(cur_path)
+video_path = "/home/jkamelin/Documents/my/tracker_benchmark/data/Panda"
 seq, ground_truth = load_video_info(video_path)
 seq = get_sequence_info(seq)
 frames = [np.array(Image.open(f)) for f in seq["image_files"]]
@@ -42,5 +43,5 @@ for i, frame in enumerate(frames):
                           (0, 255, 0), 1)
     print('gt: ', gt_bbox)
     print("#######################################################################")
-    # cv2.imshow('', frame)
-    # cv2.waitKey(1)
+    #cv2.imshow('', frame)
+    #cv2.waitKey(1)

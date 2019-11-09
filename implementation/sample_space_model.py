@@ -1,17 +1,19 @@
 import numpy as np
 from .runfiles import settings
 
+np.seterr(invalid='ignore')
+
 class SampleSpace:
     def __init__(self, nSamples):
         # stores the square of the euclidean distance between each pair of samples
         self.distance_matrix = np.ones((nSamples, nSamples), dtype=np.float32) * np.inf
         # Kernel matrix, used to update distance matrix
         self.gram_matrix = np.ones((nSamples, nSamples), dtype=np.float32) * np.inf
-        self.prior_weights = np.zeros((nSamples,1), dtype=np.float32)
+        self.prior_weights = np.zeros((nSamples, 1), dtype=np.float32)
 
     def find_gram_vector(self, samplesf, new_sample, num_training_samples, num_samples):
         # Find the inner product of the new sample with the existing samples
-        gram_vector = np.inf * np.ones(num_samples)
+        gram_vector = np.inf * np.ones((num_samples))
         if num_training_samples > 0:
                 ip = 0.
                 for k in range(len(new_sample)):

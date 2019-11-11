@@ -91,10 +91,8 @@ class SampleSpace:
         return merged_sample
 
     def update(self, samplesf, new_train_sample, num_training_samples):
-        params = settings.params
-
         num_feature_blocks = len(new_train_sample)
-        gram_vector = self.find_gram_vector(samplesf, new_train_sample, num_training_samples, params["nSamples"])
+        gram_vector = self.find_gram_vector(samplesf, new_train_sample, num_training_samples, settings.nSamples)
         new_train_sample_norm = 0.0
         for i in range(0, num_feature_blocks):
             new_train_sample_norm += np.real(2 * np.vdot(new_train_sample[i].flatten(),
@@ -108,10 +106,10 @@ class SampleSpace:
         merged_sample_id = -1
         new_sample_id = -1
 
-        if num_training_samples == params["nSamples"]:
+        if num_training_samples == settings.nSamples:
             min_sample_id = np.argmin(self.prior_weights)
             min_sample_weight = self.prior_weights[min_sample_id]
-            if min_sample_weight < params["minimum_sample_weight"]:
+            if min_sample_weight < settings.minimum_sample_weight:
                 # if any prior weight is less than the minimum allowed weight
                 # replace the sample with the new sample
                 # udpate distance matrix and the gram matrix
@@ -119,8 +117,8 @@ class SampleSpace:
 
                 # normalize the prior weights so that the new sample gets weight as the learning rate
                 self.prior_weights[min_sample_id] = 0
-                self.prior_weights = self.prior_weights * (1 - params["learning_rate"]) / np.sum(self.prior_weights)
-                self.prior_weights[min_sample_id] = params["learning_rate"]
+                self.prior_weights = self.prior_weights * (1 - settings.learning_rate) / np.sum(self.prior_weights)
+                self.prior_weights[min_sample_id] = settings.learning_rate
 
                 # set the new sample and new sample position in the samplesf
                 new_sample_id = min_sample_id
@@ -148,7 +146,7 @@ class SampleSpace:
                     # the nearest existing sample
 
                     # renormalize prior weights
-                    self.prior_weights = self.prior_weights * (1 - params["learning_rate"])
+                    self.prior_weights = self.prior_weights * (1 - settings.learning_rate)
 
                     # set the position of the merged sample
                     merged_sample_id = closest_sample_to_new_sample
@@ -161,17 +159,17 @@ class SampleSpace:
                     # merge the new_training_sample with existing sample
                     merged_sample = self.merge_samples(existing_sample_to_merge, new_train_sample,
                                                        self.prior_weights[merged_sample_id],
-                                                       params["learning_rate"], params["sample_merge_type"])
+                                                       settings.learning_rate, settings.sample_merge_type)
 
                     # update distance matrix and the gram matrix
                     self.update_distance_matrix(gram_vector, new_train_sample_norm,
                                                 merged_sample_id, -1,
                                                 self.prior_weights[merged_sample_id, 0],
-                                                params["learning_rate"])
+                                                settings.learning_rate)
 
                     # udpate the prior weight of the merged sample
                     self.prior_weights[closest_sample_to_new_sample] = self.prior_weights[closest_sample_to_new_sample] + \
-                                                                       params["learning_rate"]
+                                                                       settings.learning_rate
 
                 else:
                     # if the min distance amongst any of the existing samples is less than the
@@ -179,7 +177,7 @@ class SampleSpace:
                     # existing samples and insert the new sample in the vacated position
 
                     # renormalize prior weights
-                    self.prior_weights = self.prior_weights * ( 1 - params["learning_rate"])
+                    self.prior_weights = self.prior_weights * ( 1 - settings.learning_rate)
 
                     if self.prior_weights[closest_existing_sample2] > self.prior_weights[closest_existing_sample1]:
                         tmp = closest_existing_sample1
@@ -196,7 +194,7 @@ class SampleSpace:
                     merged_sample = self.merge_samples(sample_to_merge1, sample_to_merge2,
                                                        self.prior_weights[closest_existing_sample1],
                                                        self.prior_weights[closest_existing_sample2],
-                                                       params["sample_merge_type"])
+                                                       settings.sample_merge_type)
 
                     # update distance matrix and the gram matrix
                     self.update_distance_matrix(gram_vector, new_train_sample_norm,
@@ -207,7 +205,7 @@ class SampleSpace:
                     # update prior weights for the merged sample and the new sample
                     self.prior_weights[closest_existing_sample1] = self.prior_weights[closest_existing_sample1] + \
                                                                    self.prior_weights[closest_existing_sample2]
-                    self.prior_weights[closest_existing_sample2] = params["learning_rate"]
+                    self.prior_weights[closest_existing_sample2] = settings.learning_rate
 
                     # set the mreged sample position and new sample position
                     merged_sample_id = closest_existing_sample1
@@ -225,8 +223,8 @@ class SampleSpace:
             if sample_position == 0:
                 self.prior_weights[sample_position] = 1
             else:
-                self.prior_weights = self.prior_weights * (1 - params["learning_rate"])
-                self.prior_weights[sample_position] = params["learning_rate"]
+                self.prior_weights = self.prior_weights * (1 - settings.learning_rate)
+                self.prior_weights[sample_position] = settings.learning_rate
 
             new_sample_id = sample_position
             new_sample = new_train_sample

@@ -11,20 +11,18 @@ from .runfiles import settings
 
 class ScaleFilter:
     def __init__(self, target_sz):
-        params = settings.params
-
-        scale_sigma = params["number_of_interp_scales"] * params["scale_sigma_factor"]
-        num_scales = params["number_of_scales_filter"]
+        scale_sigma = settings.number_of_interp_scales * settings.scale_sigma_factor
+        num_scales = settings.number_of_scales_filter
         scale_exp = np.arange(-np.floor(num_scales - 1)/2,
                               np.ceil(num_scales-1)/2+1,
-                              dtype=np.float32) * params["number_of_interp_scales"] / num_scales
+                              dtype=np.float32) * settings.number_of_interp_scales / num_scales
         scale_exp_shift = np.roll(scale_exp, (0, -int(np.floor((num_scales-1)/2))))
 
-        interp_scale_exp = np.arange(-np.floor((params["number_of_interp_scales"]-1)/2),
-                                     np.ceil((params["number_of_interp_scales"]-1)/2)+1,
+        interp_scale_exp = np.arange(-np.floor((settings.number_of_interp_scales - 1)/2),
+                                     np.ceil((settings.number_of_interp_scales - 1)/2)+1,
                                      dtype=np.float32)
-        interp_scale_exp_shift = np.roll(interp_scale_exp, [0, -int(np.floor(params["number_of_interp_scales"]-1)/2)])
-        scale_step = params["scale_step_filter"]
+        interp_scale_exp_shift = np.roll(interp_scale_exp, [0, -int(np.floor(settings.number_of_interp_scales-1)/2)])
+        scale_step = settings.scale_step_filter
 
         self.scale_size_factors = scale_step ** scale_exp
         self.interp_scale_factors = scale_step ** interp_scale_exp_shift
@@ -34,14 +32,14 @@ class ScaleFilter:
         self.window = signal.hann(ys.shape[0])[np.newaxis, :].astype(np.float32)
 
         # make sure the scale model is not to large, to save computation time
-        if params['scale_model_factor']**2 * np.prod(target_sz) > params['scale_model_max_area']:
-            scale_model_factor = np.sqrt(params['scale_model_max_area'] / np.prod(target_sz))
+        if settings.scale_model_factor**2 * np.prod(target_sz) > settings.scale_model_max_area:
+            scale_model_factor = np.sqrt(settings.scale_model_max_area / np.prod(target_sz))
         else:
-            scale_model_factor = params['scale_model_factor']
+            scale_model_factor = settings.scale_model_factor
 
         # set the scale model size
         self.scale_model_sz = np.maximum(np.floor(target_sz * scale_model_factor), np.array([8, 8]))
-        self.max_scale_dim = params['s_num_compressed_dim'] == 'MAX'
+        self.max_scale_dim = settings.s_num_compressed_dim == 'MAX'
         if self.max_scale_dim:
             self.s_num_compressed_dim = len(self.scale_size_factors)
 
@@ -100,13 +98,13 @@ class ScaleFilter:
 
         # get scores
         xsf = fft(xs, axis=1)
-        scale_responsef = np.sum(self.sf_num * xsf, 0) / (self.sf_den + params['lambda'])
-        interp_scale_response = np.real(ifft(resize_DFT(scale_responsef, params['number_of_interp_scales'])))
+        scale_responsef = np.sum(self.sf_num * xsf, 0) / (self.sf_den + settings._lambda)
+        interp_scale_response = np.real(ifft(resize_DFT(scale_responsef, settings.number_of_interp_scales)))
         recovered_scale_index = np.argmax(interp_scale_response)
-        if params['do_poly_interp']:
+        if settings.do_poly_interp:
             # fit a quadratic polynomial to get a refined scale estimate
-            id1 = (recovered_scale_index - 1) % params['number_of_interp_scales']
-            id2 = (recovered_scale_index + 1) % params['number_of_interp_scales']
+            id1 = (recovered_scale_index - 1) % settings.number_of_interp_scales
+            id2 = (recovered_scale_index + 1) % settings.number_of_interp_scales
             poly_x = np.array([self.interp_scale_factors[id1], self.interp_scale_factors[recovered_scale_index], self.interp_scale_factors[id2]])
             poly_y = np.array([interp_scale_response[id1], interp_scale_response[recovered_scale_index], interp_scale_response[id2]])
             poly_A = np.array([[poly_x[0]**2, poly_x[0], 1],
@@ -133,7 +131,7 @@ class ScaleFilter:
         if first_frame:
             self.s_num = xs
         else:
-            self.s_num = (1 - params['scale_learning_rate']) * self.s_num + params['scale_learning_rate'] * xs
+            self.s_num = (1 - settings.scale_learning_rate) * self.s_num + settings.scale_learning_rate * xs
         # compute projection basis
         if self.max_scale_dim:
             self.basis, _ = scipy.linalg.qr(self.s_num, mode='economic')
@@ -155,4 +153,4 @@ class ScaleFilter:
         if first_frame:
             self.sf_den = new_sf_den
         else:
-            self.sf_den = (1 - params['scale_learning_rate']) * self.sf_den + params['scale_learning_rate'] * new_sf_den
+            self.sf_den = (1 - settings.scale_learning_rate) * self.sf_den + settings.scale_learning_rate * new_sf_den

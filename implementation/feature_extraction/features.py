@@ -20,8 +20,8 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
     if (size_mode == ''):
         size_mode = 'same'
 
-    features = settings.params['t_features']
-    gparams = settings.params['t_global']
+    features = settings.t_features
+    gparams = settings.t_global
 
     gp_keys = gparams.keys()
     if not 'normalize_power' in gp_keys:
@@ -148,7 +148,7 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
     return features
 
 def feature_normalization(x):
-    gparams = settings.params['t_global']
+    gparams = settings.t_global
     if ('normalize_power' in gparams.keys()) and gparams["normalize_power"] > 0:
         if gparams["normalize_power"] == 2:
             x = x * np.sqrt((x.shape[0]*x.shape[1]) ** gparams["normalize_size"] * (x.shape[2]**gparams["normalize_dim"]) / (x**2).sum(axis=(0, 1, 2)))
@@ -225,13 +225,13 @@ def forward_pass(x):
             pool4.asnumpy().transpose(2, 3, 1, 0)]
 
 def get_cnn_layers(im, pos, sample_sz, scale_factor, feat_ind=0):
-    gparams = settings.params['t_global']
-    fparams = settings.params['t_features'][0]['fparams']
+    # gparams = settings.t_global
+    # fparams = settings.t_features[0].get('fparams')
 
-    compressed_dim = fparams["compressed_dim"] # TODO: check
-    cell_size = fparams["cell_size"]
-    penalty = fparams["penalty"]
-    min_cell_size = np.min(cell_size)
+    # compressed_dim = fparams.get("compressed_dim") # TODO: check
+    # cell_size = fparams.get("cell_size")
+    # penalty = fparams["penalty"]
+    # min_cell_size = np.min(cell_size)
 
     if len(im.shape) == 2:
         im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
@@ -252,7 +252,7 @@ def get_cnn_layers(im, pos, sample_sz, scale_factor, feat_ind=0):
     return f1, f2
 
 def get_fhog(img, pos, sample_sz, scale_factor, feat_ind=0):
-    fparams = settings.params['t_features'][1]['fparams']
+    fparams = settings.t_features[1].get('fparams')
 
     feat = []
     if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
@@ -287,7 +287,7 @@ def avg_feature_region(features, region_size):
     return region_image
 
 def get_table_feature(img, pos, sample_sz, scale_factor, feat_ind):
-    feature = settings.params['t_features'][feat_ind]
+    feature = settings.t_features[feat_ind]
     name = feature["fparams"]["tablename"]
 
     feat = []

@@ -28,21 +28,20 @@ def _round(x):
 
 class Tracker:
     def InitCG(self):
-        params = settings.params
         self.init_CG_opts = {
             "CG_use_FR": True,
             "tol": 1e-6,
             "CG_standard_alpha": True
         }
         self.CG_opts = {
-            "CG_use_FR": params["CG_use_FR"],
+            "CG_use_FR": settings.CG_use_FR,
             "tol": 1e-6,
-            "CG_standard_alpha": params["CG_standard_alpha"]
+            "CG_standard_alpha": settings.CG_standard_alpha
         }
-        if params["CG_forgetting_rate"] == np.inf or params["learning_rate"] >= 1:
+        if settings.CG_forgetting_rate == np.inf or settings.learning_rate >= 1:
             self.CG_opts["init_forget_factor"] = 0
         else:
-            self.CG_opts["init_forget_factor"] = (1-params["learning_rate"])**params["CG_forgetting_rate"]
+            self.CG_opts["init_forget_factor"] = (1-settings.learning_rate)**settings.CG_forgetting_rate
 
     def SetCosWindow(self, sz):
         cos_window = []
@@ -58,14 +57,14 @@ class Tracker:
         self.cos_window = cos_window
 
     def SetScales(self, im):
-        if settings.params["use_scale_filter"]:
+        if settings.use_scale_filter:
             self.scale_filter = ScaleFilter(self.target_sz)
             self.nScales = self.scale_filter.num_scales
             self.scaleFactors = self.scale_filter.scale_factors
             scale_step = self.scale_filter.scale_step
         else:
-            self.nScales = settings.params["number_of_scales"]
-            scale_step = settings.params["scale_step"]
+            self.nScales = settings.number_of_scales
+            scale_step = settings.scale_step
             scale_exp = np.arange(-np.floor((self.nScales-1)/2), np.ceil((self.nScales-1)/2)+1)
             self.scaleFactors = scale_step**scale_exp
 
@@ -77,36 +76,35 @@ class Tracker:
                                                            np.log(scale_step))
 
     def __init__(self, seq, im, is_color=True):
-        params = settings.params
-        features = params["t_features"]
+        features = settings.t_features
 
         self.is_color_image = is_color
         self.pos = seq["init_pos"]
         self.target_sz = seq["init_sz"]
-        self.nSamples = min(params["nSamples"], seq["num_frames"])
+        self.nSamples = min(settings.nSamples, seq["num_frames"])
         self.num_frames = seq["num_frames"]
 
-        search_area = np.prod(self.target_sz * params["search_area_scale"])
-        if search_area > params["max_image_sample_size"]:
-            self.currentScaleFactor = math.sqrt(search_area / params["max_image_sample_size"])
-        elif search_area < params["min_image_sample_size"]:
-            self.currentScaleFactor = math.sqrt(search_area / params["min_image_sample_size"])
+        search_area = np.prod(self.target_sz * settings.search_area_scale)
+        if search_area > settings.max_image_sample_size:
+            self.currentScaleFactor = math.sqrt(search_area / settings.max_image_sample_size)
+        elif search_area < settings.min_image_sample_size:
+            self.currentScaleFactor = math.sqrt(search_area / settings.min_image_sample_size)
         else:
             self.currentScaleFactor = 1.0
 
         self.base_target_sz = np.array(self.target_sz, np.float32) / self.currentScaleFactor
 
-        if params["search_area_shape"] == 'proportional':
-            img_sample_sz = math.floor(self.base_target_sz * params["search_area_scale"])
-        if params["search_area_shape"] == 'square':
-            img_sample_sz = np.tile(math.sqrt(np.prod(self.base_target_sz*params["search_area_scale"])),
+        if settings.search_area_shape == 'proportional':
+            img_sample_sz = math.floor(self.base_target_sz * settings.search_area_scale)
+        if settings.search_area_shape == 'square':
+            img_sample_sz = np.tile(math.sqrt(np.prod(self.base_target_sz*settings.search_area_scale)),
                                     (1, 2))[0]
-        if params["search_area_shape"] == 'fix_padding':
+        if settings.search_area_shape == 'fix_padding':
             img_sample_sz = self.base_target_sz + \
-                            math.sqrt(np.prod(self.base_target_sz*params["search_area_scale"]) + \
+                            math.sqrt(np.prod(self.base_target_sz*settings.search_area_scale) + \
                                       (self.base_target_sz[0] - self.base_target_sz[1])/4) - \
                             sum(self.base_target_sz)/2
-        if params["search_area_shape"] == 'custom':
+        if settings.search_area_shape == 'custom':
             img_sample_sz = np.array((self.base_target_sz[0]*2, self.base_target_sz[1]*2), float)
 
         img_sample_sz[0] = (np.ceil(img_sample_sz[0]) if img_sample_sz[0] - np.floor(img_sample_sz[0]) > 0.5
@@ -114,7 +112,7 @@ class Tracker:
         img_sample_sz[1] = (np.ceil(img_sample_sz[1]) if img_sample_sz[1] - np.floor(img_sample_sz[1]) > 0.5
                             else np.floor(img_sample_sz[1]))
 
-        settings.params["t_features"] = features = init_features(self.is_color_image, img_sample_sz, 'odd_cells')
+        settings.t_features = features = init_features(self.is_color_image, img_sample_sz, 'odd_cells')
 
         # Set feature info
         self.img_support_sz = features[0]["img_sample_sz"]
@@ -129,7 +127,7 @@ class Tracker:
         self.feature_dim = [item for i in range(0, len(features)) for item in features[i]["fparams"]["nDim"]]
         self.num_feature_blocks = len(self.feature_dim)
 
-        if params["use_projection_matrix"]:
+        if settings.use_projection_matrix:
             self.sample_dim = [x for feature in features for x in feature["fparams"]["compressed_dim"]]
             # self.sample_dim = [features[i]["fparams"]["compressed_dim"] for i in range(0, len(features))]
             # self.sample_dim = np.concatenate((self.sample_dim[0], np.array(self.sample_dim[1]).reshape(1,)))
@@ -152,7 +150,7 @@ class Tracker:
 
         #Gaussian label function
         sig_y = np.sqrt(np.prod(np.floor(self.base_target_sz))) * \
-                params["output_sigma_factor"] * (self.output_sz / self.img_support_sz)
+                settings.output_sigma_factor * (self.output_sz / self.img_support_sz)
         yf_y = [np.sqrt(2*math.pi)*sig_y[0]/self.output_sz[0]*np.exp(-2*(math.pi*sig_y[0]*y/self.output_sz[0])**2)
                 for y in self.ky]
         yf_x = [np.sqrt(2*math.pi)*sig_y[1]/self.output_sz[1]*np.exp(-2*(math.pi*sig_y[1]*x/self.output_sz[1])**2)
@@ -199,8 +197,7 @@ class Tracker:
 
 
     def init_tracker(self, frame):
-        params = settings.params
-        features = params["t_features"]
+        features = settings.t_features
         tic = time.clock()
 
         self.sample_pos = [0,0]
@@ -221,7 +218,7 @@ class Tracker:
         # shift sample
         shift_samp = 2 * np.pi * (self.pos - self.sample_pos) / (sample_scale * self.img_support_sz) # img_sample_sz
         xlf = shift_sample(xlf, shift_samp, self.kx, self.ky)
-        self.proj_matrix = init_projection_matrix(xl, self.sample_dim, params['proj_init_method'])
+        self.proj_matrix = init_projection_matrix(xl, self.sample_dim, settings.proj_init_method)
         xlf_proj = project_sample(xlf, self.proj_matrix)  # project sample
 
         merged_sample, new_sample, merged_sample_id, new_sample_id = self.sample_space.update(self.samplesf,
@@ -229,7 +226,7 @@ class Tracker:
                                                                                               self.num_training_samples)
         self.num_training_samples += 1
 
-        if params["update_projection_matrix"]:
+        if settings.update_projection_matrix:
             # insert new sample
             for i in range(0, self.num_feature_blocks):
                 self.samplesf[i][:, :, :, new_sample_id:new_sample_id+1] = new_sample[i]
@@ -238,14 +235,14 @@ class Tracker:
 
         # init CG params
         self.CG_state = None
-        if params["update_projection_matrix"]:
-            self.init_CG_opts['maxit'] = np.ceil(params["init_CG_iter"] / params["init_GN_iter"])
+        if settings.update_projection_matrix:
+            self.init_CG_opts['maxit'] = np.ceil(settings.init_CG_iter / settings.init_GN_iter)
             self.hf = [[[]] * self.num_feature_blocks for _ in range(2)]
             feature_dim_sum = float(np.sum(self.feature_dim))
             proj_energy = [2 * np.sum(np.abs(yf_.flatten())**2) / feature_dim_sum * np.ones_like(P)
                             for P, yf_ in zip(self.proj_matrix, self.yf)]
         else:
-            self.CG_opts['maxit'] = params["init_CG_iter"]
+            self.CG_opts['maxit'] = settings.init_CG_iter
             self.hf = [[[]] * self.num_feature_blocks]
 
         # init filter
@@ -253,7 +250,7 @@ class Tracker:
             self.hf[0][i] = np.zeros((int(self.filter_sz[i][0]),
                                       int((self.filter_sz[i][1]+1)/2),
                                       int(self.sample_dim[i]), 1), dtype=np.complex64)
-        if params['update_projection_matrix']:
+        if settings.update_projection_matrix:
             # init gauss-newton optimiztion of filter and proj matrix
             self.hf, self.proj_matrix = train_joint(self.hf, self.proj_matrix,
                                                     xlf, self.yf, self.reg_filter,
@@ -263,7 +260,7 @@ class Tracker:
             for i in range(0, self.num_feature_blocks):
                 self.samplesf[i][:, :, :, 0:1] = xlf_proj[i]  # insert new sample
 
-            if params['distance_matrix_update_type'] == 'exact':
+            if settings.distance_matrix_update_type == 'exact':
                 # find the norm of reproj sample
                 new_train_sample_norm = 0
                 for i in range(0, self.num_feature_blocks):
@@ -271,7 +268,7 @@ class Tracker:
                 self.sample_space.gram_matrix[0, 0] = new_train_sample_norm
         self.hf_full = full_fourier_coeff(self.hf)
 
-        if params['use_scale_filter'] and self.nScales > 0:
+        if settings.use_scale_filter and self.nScales > 0:
             self.scale_filter.update(frame, self.pos, self.base_target_sz, self.currentScaleFactor)
 
         tracker_time = time.clock() - tic
@@ -285,13 +282,12 @@ class Tracker:
 
 
     def track(self, frame, iter):
-        params = settings.params
-        features = params["t_features"]
+        features = settings.t_features
         tic = time.clock()
 
         # TARGET LOCALIZATION
         old_pos = np.zeros((2))
-        for _ in range(0, params['refinement_iterations']):
+        for _ in range(0, settings.refinement_iterations):
             if not np.allclose(old_pos, self.pos):
                 old_pos = self.pos.copy()
                 self.sample_pos = _round(self.pos)
@@ -316,7 +312,7 @@ class Tracker:
                               int(self.pad_sz[ind][1]):int(self.output_sz[0]-self.pad_sz[ind][1])] += self.scores_fs_feat[ind]
 
                 # OPTIMIZE SCORE FUNCTION with Newnot's method.
-                trans_row, trans_col, scale_idx = optimize_scores(scores_fs, params["newton_iterations"])
+                trans_row, trans_col, scale_idx = optimize_scores(scores_fs, settings.newton_iterations)
 
                 # compute the translation vector in pixel-coordinates and round to the cloest integer pixel
                 translation_vec = np.array([trans_row, trans_col]) * (self.img_support_sz/self.output_sz) * \
@@ -326,11 +322,11 @@ class Tracker:
                 # update_position
                 self.pos = self.sample_pos + translation_vec
 
-                if params['clamp_position']:
+                if settings.clamp_position:
                     self.pos = np.maximum(np.array(0, 0), np.minimum(np.array(frame.shape[:2]), self.pos))
 
                 # do scale tracking with scale filter
-                if self.nScales > 0 and params['use_scale_filter']:
+                if self.nScales > 0 and settings.use_scale_filter:
                     scale_change_factor = self.scale_filter.track(frame, self.pos, self.base_target_sz,
                                                                   self.currentScaleFactor)
 
@@ -344,7 +340,7 @@ class Tracker:
                     self.currentScaleFactor = self.max_scale_factor
 
         # MODEL UPDATE STEP
-        if params['learning_rate'] > 0:
+        if settings.learning_rate > 0:
             # use sample that was used for detection
             sample_scale = sample_scale[scale_idx]
             xlf_proj = [xf[:, :(xf.shape[1]+1)//2, :, scale_idx:scale_idx+1] for xf in xtf_proj]
@@ -360,7 +356,7 @@ class Tracker:
         if self.num_training_samples < self.nSamples:
             self.num_training_samples += 1
 
-        if params['learning_rate'] > 0:
+        if settings.learning_rate > 0:
             for i in range(0, self.num_feature_blocks):
                 if merged_sample_id >= 0:
                     self.samplesf[i][:,:,:,merged_sample_id:merged_sample_id+1] = merged_sample[i]
@@ -368,10 +364,10 @@ class Tracker:
                     self.samplesf[i][:,:,:,new_sample_id:new_sample_id+1] = new_sample[i]
 
         # train filter
-        if iter < params['skip_after_frame'] or self.frames_since_last_train >= params['train_gap']:
+        if iter < settings.skip_after_frame or self.frames_since_last_train >= settings.train_gap:
             new_sample_energy = [np.real(xlf * np.conj(xlf)) for xlf in xlf_proj]
-            self.CG_opts['maxit'] = params['CG_iter']
-            self.sample_energy = [(1 - params['learning_rate'])*se + params['learning_rate']*nse
+            self.CG_opts['maxit'] = settings.CG_iter
+            self.sample_energy = [(1 - settings.learning_rate)*se + settings.learning_rate*nse
                              for se, nse in zip(self.sample_energy, new_sample_energy)]
 
             # do CG opt for filter
@@ -382,7 +378,7 @@ class Tracker:
             self.frames_since_last_train = 0
         else:
             self.frames_since_last_train += 1
-        if params['use_scale_filter']:
+        if settings.use_scale_filter:
             self.scale_filter.update(frame, self.pos, self.base_target_sz, self.currentScaleFactor)
 
         # update target size

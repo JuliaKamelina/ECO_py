@@ -10,11 +10,101 @@ from ._gradient import *
 
 from ..runfiles import settings
 
-def _round(x):
-    res = x.copy()
-    res[0] = np.ceil(x[0]) if x[0] - np.floor(x[0]) >= 0.5 else np.floor(x[0])
-    res[1] = np.ceil(x[1]) if x[1] - np.floor(x[1]) >= 0.5 else np.floor(x[1])
-    return res
+class Features():
+    def __init__(self, is_color=False):
+        self.is_color_image = is_color
+
+    def _round(self, x):
+        res = x.copy()
+        res[0] = np.ceil(x[0]) if x[0] - np.floor(x[0]) >= 0.5 else np.floor(x[0])
+        res[1] = np.ceil(x[1]) if x[1] - np.floor(x[1]) >= 0.5 else np.floor(x[1])
+        return res
+
+
+    def get_feature(self, im, pos, sample_sz, scale_factor, feat_ind=0):
+        pass
+
+
+    def feature_normalization(self, x):
+        gparams = settings.t_global
+        if gparams["normalize_power"] > 0:
+            if gparams["normalize_power"] == 2:
+                x = x * np.sqrt((x.shape[0]*x.shape[1]) ** gparams["normalize_size"] * (x.shape[2]**gparams["normalize_dim"]) / (x**2).sum(axis=(0, 1, 2)))
+            else:
+                x = x * ((x.shape[0]*x.shape[1]) ** gparams["normalize_size"]) * (x.shape[2]**gparams["normalize_dim"]) / ((np.abs(x) ** (1. / gparams["normalize_power"])).sum(axis=(0, 1, 2)))
+
+        if gparams["square_root_normalization"]:
+            x = np.sign(x) * np.sqrt(np.abs(x))
+        return x.astype(np.float32)
+
+
+    def get_sample(self, im, pos, img_sample_sz, output_sz):
+        pos = np.floor(pos)
+        sample_sz = np.maximum(self._round(img_sample_sz), 1)
+        x = np.floor(pos[1]) + np.arange(0, sample_sz[1]+1) - np.floor((sample_sz[1]+1)/2)
+        y = np.floor(pos[0]) + np.arange(0, sample_sz[0]+1) - np.floor((sample_sz[0]+1)/2)
+        x_min = max(0, int(x.min()))
+        x_max = min(im.shape[1], int(x.max()))
+        y_min = max(0, int(y.min()))
+        y_max = min(im.shape[0], int(y.max()))
+
+        if len(im) == 3:
+            im_patch = im[y_min:y_max, x_min:x_max, :]
+        else:
+            im_patch = im[y_min:y_max, x_min:x_max]
+        left = right = top = down = 0
+
+        if x.min() < 0:
+            left = int(abs(x.min()))
+        if x.max() > im.shape[1]:
+            right = int(x.max() - im.shape[1])
+
+        if y.min() < 0:
+            top = int(abs(y.min()))
+        if y.max() > im.shape[0]:
+            down = int(y.max() - im.shape[0])
+
+        if left != 0 or right != 0 or top != 0 or down != 0:
+            im_patch = cv.copyMakeBorder(im_patch, top, down, left, right, cv.BORDER_REPLICATE)
+        im_patch = cv.resize(im_patch, (int(output_sz[0]), int(output_sz[1])), cv.INTER_CUBIC)
+
+        if len(im_patch.shape) == 2:
+            im_patch = im_patch[:, :, np.newaxis]
+        return im_patch
+
+
+class CNNFeatures(Features):
+    def __init__(self, is_color, img_sample_sz=[], size_mode='same'):
+        super().__init__(is_color)
+        use_for_color = settings.cnn_params.get('useForColor', True)
+        use_for_gray = settings.cnn_params.get('useForGray', True)
+        self.use_feature = (use_for_color and is_color) or (use_for_gray and not is_color)
+        self.output_layer = settings.cnn_params['output_layer'].sort()
+        self.nDim = np.array([64, 512]) #[96 512] net["info"]["dataSize"][layer_dim_ind, 2]
+        self.cell_size = np.array([4, 16])
+        self.penalty = np.zeros((2, 1))
+        self.img_sample_sz = _set_size(img_sample_sz, size_mode)
+
+    @staticmethod
+    def _set_size(img_sample_sz, size_mode):
+        new_img_sample_sz = np.array(img_sample_sz, dtype=np.int32)
+        if size_mode != "same" and settings.cnn_params['input_size_mode'] == "adaptive":
+            orig_sz = np.ceil(new_img_sample_sz/16)
+
+            if size_mode == "exact":
+                desired_sz = orig_sz + 1
+            elif size_mode == "odd_cells":
+                desired_sz = orig_sz + 1 + orig_sz%2
+            new_img_sample_sz = desired_sz*16
+
+        if settings.cnn_params['input_size_mode'] == "adaptive":
+            img_sample_sz = np.round(new_img_sample_sz) # == feature_info.img_support_sz
+        else:
+            img_sample_sz = np.array(img_sample_sz) #net["meta"].normalization.imageSize[0:2]
+        return img_sample_sz
+
+    def get_feature(self, im, pos, sample_sz, scale_factor, feat_ind=0):
+        
 
 def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
     if (size_mode == ''):
@@ -22,18 +112,6 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
 
     features = settings.t_features
     gparams = settings.t_global
-
-    gp_keys = gparams.keys()
-    if not 'normalize_power' in gp_keys:
-        gparams['normalize_power'] = []
-    if not 'normalize_size' in gp_keys:
-        gparams['normalize_size'] = True
-    if not 'normalize_dim' in gp_keys:
-        gparams['normalize_dim'] = False
-    if not 'square_root_normalization' in gp_keys:
-        gparams['square_root_normalization'] = False
-    if not 'use_gpu' in gp_keys:
-        gparams['use_gpu'] = False
 
     keep_features = []
     for i in range(0,len(features)):
@@ -146,48 +224,6 @@ def init_features(is_color_image = False, img_sample_sz = [], size_mode = ''):
         else:
             features[i]["data_sz"] = features[i]["img_sample_sz"]//features[i]["fparams"]["cell_size"][:, None]
     return features
-
-def feature_normalization(x):
-    gparams = settings.t_global
-    if ('normalize_power' in gparams.keys()) and gparams["normalize_power"] > 0:
-        if gparams["normalize_power"] == 2:
-            x = x * np.sqrt((x.shape[0]*x.shape[1]) ** gparams["normalize_size"] * (x.shape[2]**gparams["normalize_dim"]) / (x**2).sum(axis=(0, 1, 2)))
-        else:
-            x = x * ((x.shape[0]*x.shape[1]) ** gparams["normalize_size"]) * (x.shape[2]**gparams["normalize_dim"]) / ((np.abs(x) ** (1. / gparams["normalize_power"])).sum(axis=(0, 1, 2)))
-
-    if gparams["square_root_normalization"]:
-        x = np.sign(x) * np.sqrt(np.abs(x))
-    return x.astype(np.float32)
-
-def get_sample(im, pos, img_sample_sz, output_sz):
-    pos = np.floor(pos)
-    sample_sz = np.maximum(_round(img_sample_sz), 1)
-    x = np.floor(pos[1]) + np.arange(0, sample_sz[1]+1) - np.floor((sample_sz[1]+1)/2)
-    y = np.floor(pos[0]) + np.arange(0, sample_sz[0]+1) - np.floor((sample_sz[0]+1)/2)
-    x_min = max(0, int(x.min()))
-    x_max = min(im.shape[1], int(x.max()))
-    y_min = max(0, int(y.min()))
-    y_max = min(im.shape[0], int(y.max()))
-    # extract image
-    if len(im) == 3:
-        im_patch = im[y_min:y_max, x_min:x_max, :]
-    else:
-        im_patch = im[y_min:y_max, x_min:x_max]
-    left = right = top = down = 0
-    if x.min() < 0:
-        left = int(abs(x.min()))
-    if x.max() > im.shape[1]:
-        right = int(x.max() - im.shape[1])
-    if y.min() < 0:
-        top = int(abs(y.min()))
-    if y.max() > im.shape[0]:
-        down = int(y.max() - im.shape[0])
-    if left != 0 or right != 0 or top != 0 or down != 0:
-        im_patch = cv.copyMakeBorder(im_patch, top, down, left, right, cv.BORDER_REPLICATE)
-    im_patch = cv.resize(im_patch, (int(output_sz[0]), int(output_sz[1])), cv.INTER_CUBIC)
-    if len(im_patch.shape) == 2:
-        im_patch = im_patch[:, :, np.newaxis]
-    return im_patch
 
 def forward_pass(x):
     vgg16 = vision.vgg16(pretrained=True)

@@ -8,7 +8,7 @@ import sys
 
 from scipy import signal
 
-from .feature_extraction import init_features, get_cnn_layers, get_fhog, get_table_feature
+from .feature_extraction import CNNFeatures, HOGFeatures
 from .initialization import get_interp_fourier, get_reg_filter
 from .fourier_tools import (cfft2, interpolate_dft, shift_sample,
                             full_fourier_coeff, ifft2, fft2,
@@ -112,23 +112,24 @@ class Tracker:
         img_sample_sz[1] = (np.ceil(img_sample_sz[1]) if img_sample_sz[1] - np.floor(img_sample_sz[1]) > 0.5
                             else np.floor(img_sample_sz[1]))
 
-        settings.t_features = features = init_features(self.is_color_image, img_sample_sz, 'odd_cells')
+        settings.t_features = features = [HOGFeatures(self.is_color_image, img_sample_sz, 'odd_cells'),
+                                          CNNFeatures(self.is_color_image, img_sample_sz, 'odd_cells')]
 
         # Set feature info
-        self.img_support_sz = features[0]["img_sample_sz"]
+        self.img_support_sz = features[0].img_sample_sz
 
         feature_sz = []
         for i in range(0, len(features)):
-            if len(features[i]["data_sz"].shape) > 1:
-                for item in features[i]["data_sz"]:
+            if len(features[i].data_sz.shape) > 1:
+                for item in features[i].data_sz:
                     feature_sz.append(item)
             else:
-                feature_sz.append(features[i]["data_sz"])
-        self.feature_dim = [item for i in range(0, len(features)) for item in features[i]["fparams"]["nDim"]]
+                feature_sz.append(features[i].data_sz)
+        self.feature_dim = [item for i in range(0, len(features)) for item in features[i].nDim]
         self.num_feature_blocks = len(self.feature_dim)
 
         if settings.use_projection_matrix:
-            self.sample_dim = [x for feature in features for x in feature["fparams"]["compressed_dim"]]
+            self.sample_dim = [x for feature in features for x in feature.compressed_dim]
             # self.sample_dim = [features[i]["fparams"]["compressed_dim"] for i in range(0, len(features))]
             # self.sample_dim = np.concatenate((self.sample_dim[0], np.array(self.sample_dim[1]).reshape(1,)))
         else:
@@ -172,7 +173,7 @@ class Tracker:
         reg_window_edge = np.array([])
         shape = 0
         for i in range(0, len(features)):
-            shape += len(features[i]["fparams"]["nDim"])
+            shape += len(features[i].nDim)
         reg_window_edge = reg_window_edge.reshape((shape, 0))
 
         self.reg_filter = [get_reg_filter(self.img_support_sz, self.base_target_sz, reg_win_edge)
@@ -207,7 +208,7 @@ class Tracker:
                               else np.floor(self.pos[1]))
         sample_scale = self.currentScaleFactor
         xl = [x for i in range(0, len(features))
-                for x in features[i]["feature"](frame, self.sample_pos, features[i]['img_sample_sz'],
+                for x in features[i].get_feature(frame, self.sample_pos, features[i].img_sample_sz,
                                                 self.currentScaleFactor, i)]
         # print(xl)
 
@@ -293,8 +294,8 @@ class Tracker:
                 self.sample_pos = _round(self.pos)
                 sample_scale = self.currentScaleFactor*self.scaleFactors
                 xt = [x for i in range(0, len(features))
-                      for x in features[i]["feature"](frame, self.sample_pos,
-                                                      features[i]['img_sample_sz'], sample_scale, i)] # extract features
+                      for x in features[i].get_feature(frame, self.sample_pos,
+                                                      features[i].img_sample_sz, sample_scale, i)] # extract features
 
                 xt_proj = project_sample(xt, self.proj_matrix)  # project sample
                 xt_proj = [fmap * cos for fmap, cos in zip(xt_proj, self.cos_window)]  # do windowing

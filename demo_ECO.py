@@ -41,8 +41,8 @@ def demo_tracker(video_path):
                               (0, 255, 0), 1)
         print('gt: ', gt_bbox)
         print("#######################################################################")
-        # cv2.imshow('', frame)
-        # cv2.waitKey(1)
+        cv2.imshow('', frame)
+        cv2.waitKey(1)
 
 
 if __name__ == '__main__':

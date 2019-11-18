@@ -100,7 +100,7 @@ class CNNFeatures(Features):
         self.penalty = np.zeros((2, 1))
         self.compressed_dim = settings.cnn_params['compressed_dim']
         self.img_sample_sz = self._set_size(img_sample_sz, size_mode)
-        self.data_sz = np.ceil(self.img_sample_sz / self.cell_size)
+        self.data_sz = np.ceil(self.img_sample_sz / self.cell_size[:, None])
 
     @staticmethod
     def forward_pass(x):
@@ -291,8 +291,6 @@ class HOGFeatures(Features):
         self.data_sz = np.ceil(self.img_sample_sz / self.cell_size)
 
     def get_feature(self, img, pos, sample_sz, scale_factor, feat_index=1):
-        fparams = settings.t_features[feat_index].get('fparams')
-
         feat = []
         if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
             scale_factor = [scale_factor]
@@ -300,7 +298,7 @@ class HOGFeatures(Features):
             patch = self.get_sample(img, pos, sample_sz*scale, sample_sz)
             # h, w, c = patch.shape
             M, O = gradMag(patch.astype(np.float32), 0, True)
-            H = fhog(M, O, fparams["cell_size"], fparams["nOrients"], -1, .2)
+            H = fhog(M, O, self.cell_size, self.nOrients, -1, .2)
             # drop the last dimension
             H = H[:, :, :-1]
             feat.append(H)

@@ -202,9 +202,9 @@ class Tracker:
         tic = time.clock()
 
         self.sample_pos = [0,0]
-        self.sample_pos[0] = (np.ceil(self.pos[0]) if self.pos[0] - np.floor(self.pos[0]) > 0.5
+        self.sample_pos[0] = (np.floor(self.pos[0]) + 1 if self.pos[0] - np.floor(self.pos[0]) >= 0.5
                               else np.floor(self.pos[0]))
-        self.sample_pos[1] = (np.ceil(self.pos[1]) if self.pos[1] - np.floor(self.pos[1]) > 0.5
+        self.sample_pos[1] = (np.floor(self.pos[1]) + 1 if self.pos[1] - np.floor(self.pos[1]) >= 0.5
                               else np.floor(self.pos[1]))
         sample_scale = self.currentScaleFactor
         xl = [x for i in range(0, len(features))
@@ -273,12 +273,12 @@ class Tracker:
             self.scale_filter.update(frame, self.pos, self.base_target_sz, self.currentScaleFactor)
 
         tracker_time = time.clock() - tic
-        bbox = (int(self.pos[1] - self.target_sz[1]/2),  # x_min
-                int(self.pos[1] + self.target_sz[1]/2),  # x_max
-                int(self.pos[0] - self.target_sz[0]/2),  # y_min
-                int(self.pos[0] + self.target_sz[0]/2))  # y_max
-        print(self.pos)
-        print(self.target_sz)
+        bbox = (self.pos[1] - self.target_sz[1]/2,  # x_min
+                self.pos[0] - self.target_sz[0]/2,  # y_min
+                self.pos[1] + self.target_sz[1]/2,  # x_max
+                self.pos[0] + self.target_sz[0]/2)  # y_max
+        # print(self.pos)
+        # print(self.target_sz)
         return (bbox, tracker_time)
 
 
@@ -385,10 +385,10 @@ class Tracker:
         # update target size
         self.target_sz = self.base_target_sz*self.currentScaleFactor
         tracker_time = time.clock() - tic
-        bbox = (int(self.pos[1] - self.target_sz[1]/2),  # x_min
-                int(self.pos[0] - self.target_sz[0]/2),  # y_min
-                int(self.pos[1] + self.target_sz[1]/2),  # x_max
-                int(self.pos[0] + self.target_sz[0]/2))  # y_max
-        print(self.pos)
+        bbox = (self.pos[1] - self.target_sz[1]/2,  # x_min
+                self.pos[0] - self.target_sz[0]/2,  # y_min
+                self.pos[1] + self.target_sz[1]/2,  # x_max
+                self.pos[0] + self.target_sz[0]/2)  # y_max
+        # print(self.pos)
         print(self.target_sz)
         return (bbox, tracker_time)

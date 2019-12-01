@@ -21,6 +21,7 @@ def demo_tracker(video_path):
             bbox, time = tracker.init_tracker(frame)
         else:
             bbox, time = tracker.track(frame, i)
+        print(i)
         print('bb: ', bbox)
         print(time)
         if is_color:
@@ -47,5 +48,5 @@ def demo_tracker(video_path):
 
 if __name__ == '__main__':
     # cur_path = os.path.dirname(os.path.abspath(__file__))
-    video = "/home/jkamelin/Documents/my/tracker_benchmark/data/Biker"
+    video = "sequences/Car1"
     demo_tracker(video)

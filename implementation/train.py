@@ -263,9 +263,7 @@ def lhs_operation(hf, samplesf, reg_filter, sample_weights, use_gpu=False):
     return [hf_out]
 
 def train_joint(hf, projection_matrix, xlf, yf, reg_filter, sample_energy, reg_energy, proj_energy, init_CG_opts):
-    params = settings.params
-
-    if params["use_gpu"]:
+    if settings.use_gpu:
         print("GPU")
         raise(NotImplementedError)
 
@@ -275,24 +273,24 @@ def train_joint(hf, projection_matrix, xlf, yf, reg_filter, sample_energy, reg_e
 
     # preconditioner
     diag_M = [[], []]
-    diag_M[0] = [(1 - params['precond_reg_param']) * (params['precond_data_param']*m + (1 - params['precond_data_param']) * np.mean(m, 2, keepdims=True)) +
-                 params['precond_reg_param'] * reg_energy_ for m, reg_energy_ in zip(sample_energy, reg_energy)]
-    diag_M[1] = [params['precond_proj_param'] * (m + params['projection_reg']) for m in proj_energy]
+    diag_M[0] = [(1 - settings.precond_reg_param) * (settings.precond_data_param*m + (1 - settings.precond_data_param) * np.mean(m, 2, keepdims=True)) +
+                 settings.precond_reg_param * reg_energy_ for m, reg_energy_ in zip(sample_energy, reg_energy)]
+    diag_M[1] = [settings.precond_proj_param * (m + settings.projection_reg) for m in proj_energy]
 
     rhs_samplef = [[]] * len(hf[0])
-    for iter in range(0, params['init_GN_iter']):
+    for iter in range(0, settings.init_GN_iter):
         init_samplef_proj = [np.matmul(P.T, x) for x, P in zip(init_samplef, projection_matrix)]  # project sample with new projection_matrix
         init_hf = hf[0]
         rhs_samplef[0] = [np.conj(x) * y[:, :, np.newaxis, np.newaxis] for x, y in zip(init_samplef_proj, yf)] # right-hand-side vector for filter
         # right hand side vector for the projection matrix part
         fyf = [np.reshape(np.conj(f) * y[:, :, np.newaxis, np.newaxis], (-1, f.shape[2])) for f, y in zip(hf[0], yf)]
-        rhs_samplef[1] = [2 * np.real(XH.dot(fyf_) - XH[:, fi:].dot(fyf_[fi:, :])) - params['projection_reg'] * P
+        rhs_samplef[1] = [2 * np.real(XH.dot(fyf_) - XH[:, fi:].dot(fyf_[fi:, :])) - settings.projection_reg * P
                          for P, XH, fyf_, fi in zip(projection_matrix, init_samplef_H, fyf, lf_ind)]
 
         hf[1] = [np.zeros_like(P) for P in projection_matrix]
 
         # CG
-        hf, _, _ = pcg(lambda x: lhs_operation_joint(x, init_samplef_proj, reg_filter, init_samplef, init_samplef_H, init_hf, params["projection_reg"], params['use_gpu']), # A
+        hf, _, _ = pcg(lambda x: lhs_operation_joint(x, init_samplef_proj, reg_filter, init_samplef, init_samplef_H, init_hf, settings.projection_reg, settings.use_gpu), # A
                        rhs_samplef, # b
                        init_CG_opts,
                        lambda x: diag_precond(x, diag_M),  # M1
@@ -320,9 +318,7 @@ def train_filter(hf, samplesf, yf, reg_filter, sample_weights, sample_energy, re
     """
         do conjugate graident optimization of the filter
     """
-    params = settings.params
-
-    if params['use_gpu']:
+    if settings.use_gpu:
         raise(NotImplementedError)
 
     # construct the right hand side vector (A^H weight yf)
@@ -331,10 +327,10 @@ def train_filter(hf, samplesf, yf, reg_filter, sample_weights, sample_energy, re
                    for x, y in zip(rhs_samplef, yf)]
 
     # construct preconditioner
-    diag_M = [(1 - params['precond_reg_param']) * (params['precond_data_param'] * m + (1-params['precond_data_param'])*np.mean(m, 2, keepdims=True)) +
-              params['precond_reg_param'] * reg_energy_ for m, reg_energy_ in zip(sample_energy, reg_energy)]
+    diag_M = [(1 - settings.precond_reg_param) * (settings.precond_data_param * m + (1-settings.precond_data_param)*np.mean(m, 2, keepdims=True)) +
+              settings.precond_reg_param * reg_energy_ for m, reg_energy_ in zip(sample_energy, reg_energy)]
     hf, _, CG_state = pcg(
-        lambda x: lhs_operation(x, samplesf, reg_filter, sample_weights, params['use_gpu']), # A
+        lambda x: lhs_operation(x, samplesf, reg_filter, sample_weights, settings.use_gpu), # A
         [rhs_samplef],  # b
         CG_opts,
         lambda x: diag_precond(x, [diag_M]),

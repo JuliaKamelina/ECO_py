@@ -29,16 +29,12 @@ class OTBHC:
             'name': 'get_fhog',
             'fparams': hog_params
         }
-        # {
-        #     'name': 'get_table_feature',
-        #     'fparams': ic_params
-        # }
     ]
 
     t_global = {
-        "normalize_power": 2,    # Lp normalization with this p
-        "normalize_size": True,  # Also normalize with respect to the spatial size of the feature
-        "normalize_dim": True,   # Also normalize with respect to the dimensionality of the feature
+        "normalize_power": 2,
+        "normalize_size": True,
+        "normalize_dim": True,
         "square_root_normalization": False
     }
 

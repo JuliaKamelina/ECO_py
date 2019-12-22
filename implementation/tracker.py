@@ -390,5 +390,5 @@ class Tracker:
                 self.pos[1] + self.target_sz[1]/2,  # x_max
                 self.pos[0] + self.target_sz[0]/2)  # y_max
         # print(self.pos)
-        print(self.target_sz)
+        # print(self.target_sz)
         return (bbox, tracker_time)

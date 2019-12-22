@@ -2,6 +2,7 @@ import sys
 import os
 import cv2
 import numpy as np
+import argparse
 
 from PIL import Image
 sys.path.append('./')
@@ -47,6 +48,7 @@ def demo_tracker(video_path):
 
 
 if __name__ == '__main__':
-    # cur_path = os.path.dirname(os.path.abspath(__file__))
-    video = "sequences/Car1"
-    demo_tracker(video)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--video", default="sequences/Car1")
+    args = parser.parse_args()
+    demo_tracker(args.video)

@@ -4,6 +4,7 @@ import cv2 as cv
 import scipy.io
 import os
 
+from openvino.inference_engine import IECore
 from mxnet.gluon.model_zoo import vision
 from mxnet.gluon.nn import AvgPool2D
 from ._gradient import *
@@ -86,6 +87,48 @@ class Features():
         if len(im_patch.shape) == 2:
             im_patch = im_patch[:, :, np.newaxis]
         return im_patch
+
+
+class ResnetFeatures(Features):
+    def __init__(self, is_color, img_sample_sz=[], size_mode='same'):
+        super().__init__(is_color)
+        use_for_color = settings.cnn_params.get('useForColor', True)
+        use_for_gray = settings.cnn_params.get('useForGray', True)
+        self.use_feature = (use_for_color and is_color) or (use_for_gray and not is_color)
+        # self.output_layer = settings.cnn_params['output_layer']
+        self.nDim = np.array([64, 1024]) #[96 512] net["info"]["dataSize"][layer_dim_ind, 2]
+        self.cell_size = np.array([4, 16])
+        self.penalty = np.zeros((2, 1))
+        self.compressed_dim = settings.cnn_params['compressed_dim']
+        self.img_sample_sz = self._set_size(img_sample_sz, size_mode)
+        self.data_sz = np.ceil(self.img_sample_sz / self.cell_size[:, None])
+
+    @staticmethod
+    def forward_pass(x):
+        ie = IECore()
+        model_path = '/home/jkamelin/Documents/my/resnet_ov/model/resnet_v1-50.xml'
+        model = ie.read_network(model_path, os.path.splitext(model_path)[0] + '.bin')
+        input_layer_name = model.inputs
+        output_layer_names = model.outputs
+        exec_model = ie.load_network(model, 'CPU')
+        output = exec_model.infer(inputs={input_layer_name: x})
+        return [output[name] for name in output_layer_names]
+
+    def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
+        if len(im.shape) == 2:
+            im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
+        if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
+            scale_factor = [scale_factor]
+        patches = []
+        for scale in scale_factor:
+            patch = self.get_sample(im, pos, sample_sz*scale, sample_sz)
+            patch = patch.transpose((2, 0, 1)).expand_dims(axis=0)
+            patches.append(patch)
+        patches = np.concatenate((*patches), axis=0)
+        f1, f2 = self.forward_pass(patches)
+        f1 = self.feature_normalization(f1)
+        f2 = self.feature_normalization(f2)
+        return f1, f2
 
 
 class CNNFeatures(Features):

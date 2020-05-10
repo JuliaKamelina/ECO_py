@@ -103,28 +103,36 @@ class ResnetFeatures(Features):
         self.img_sample_sz = self._set_size(img_sample_sz, size_mode)
         self.data_sz = np.ceil(self.img_sample_sz / self.cell_size[:, None])
 
-    @staticmethod
-    def forward_pass(x):
         ie = IECore()
         model_path = '/home/jkamelin/Documents/my/resnet_ov/model/resnet_v1-50.xml'
         model = ie.read_network(model_path, os.path.splitext(model_path)[0] + '.bin')
-        input_layer_name = model.inputs
-        output_layer_names = model.outputs
-        exec_model = ie.load_network(model, 'CPU')
-        output = exec_model.infer(inputs={input_layer_name: x})
-        return [output[name] for name in output_layer_names]
+        # ie.set_config({"DYN_BATCH_ENABLED": "YES"}, 'CPU')
+        self.input_layer_name = next(iter(model.inputs))
+        self.output_layer_names = sorted(model.outputs, reverse=True)
+        self.exec_model = ie.load_network(model, 'CPU')
+
+
+    # @staticmethod
+    def forward_pass(self, x):
+        if x.shape[0] != self.exec_model.inputs[self.input_layer_name].shape[0]:
+            self.exec_model.reshape({self.input_layer_name: x.shape})
+        output = self.exec_model.infer(inputs={self.input_layer_name: x})
+        return [output[name].transpose(2, 3, 1, 0) for name in self.output_layer_names]
 
     def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
         if len(im.shape) == 2:
-            im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
+            im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2BGR)
+        else:
+            im = cv.cvtColor(im, cv.COLOR_RGB2BGR)
         if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
             scale_factor = [scale_factor]
         patches = []
         for scale in scale_factor:
             patch = self.get_sample(im, pos, sample_sz*scale, sample_sz)
-            patch = patch.transpose((2, 0, 1)).expand_dims(axis=0)
+            patch = patch.transpose((2, 0, 1))
+            patch = np.expand_dims(patch, axis=0)
             patches.append(patch)
-        patches = np.concatenate((*patches), axis=0)
+        patches = np.concatenate(patches, axis=0)
         f1, f2 = self.forward_pass(patches)
         f1 = self.feature_normalization(f1)
         f2 = self.feature_normalization(f2)

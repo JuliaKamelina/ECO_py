@@ -1,1 +1,1 @@
-from .features import CNNFeatures, HOGFeatures, TableFeatures, _fhog
+from .features import CNNFeatures, HOGFeatures, TableFeatures, _fhog, ResnetFeatures

@@ -6,8 +6,17 @@ class OTBDeep:
         "compressed_dim": [10]
     }
 
+    # cnn_params = {
+    #     "nn_name": 'vgg16',
+    #     "output_layer": np.array([3, 14]),
+    #     "downsample_factor": np.array([2, 1]),  # How much to downsample each output layer
+    #     "compressed_dim": [16, 64],   # Compressed dimensionality of each output layer
+    #     "input_size_mode": 'adaptive',
+    #     "input_size_scale": 1
+    # }
+
     cnn_params = {
-        "nn_name": 'vgg16',
+        "nn_name": 'resnet50',
         "output_layer": np.array([3, 14]),
         "downsample_factor": np.array([2, 1]),  # How much to downsample each output layer
         "compressed_dim": [16, 64],   # Compressed dimensionality of each output layer

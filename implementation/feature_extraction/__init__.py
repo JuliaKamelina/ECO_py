@@ -1,1 +1,8 @@
-from .features import CNNFeatures, HOGFeatures, TableFeatures, _fhog, ResnetFeatures
+from .features import (
+    VGGFeatures,
+    Resnet18Features,
+    Resnet50Features,
+    HOGFeatures,
+    TableFeatures,
+    _fhog,
+)

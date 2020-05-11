@@ -8,7 +8,8 @@ import sys
 
 from scipy import signal
 
-from .feature_extraction import CNNFeatures, HOGFeatures, ResnetFeatures
+from .feature_extraction import (VGGFeatures, HOGFeatures,
+                                 Resnet18Features, Resnet50Features)
 from .initialization import get_interp_fourier, get_reg_filter
 from .fourier_tools import (cfft2, interpolate_dft, shift_sample,
                             full_fourier_coeff, ifft2, fft2,
@@ -113,7 +114,7 @@ class Tracker:
                             else np.floor(img_sample_sz[1]))
 
         settings.t_features = features = [HOGFeatures(self.is_color_image, img_sample_sz, 'odd_cells'),
-                                          ResnetFeatures(self.is_color_image, img_sample_sz, 'odd_cells')]
+                                          Resnet18Features(self.is_color_image, img_sample_sz, 'odd_cells')]
 
         # Set feature info
         self.img_support_sz = features[0].img_sample_sz

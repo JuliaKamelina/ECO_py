@@ -88,18 +88,18 @@ class Features():
         return im_patch
 
 
-class ResnetFeatures(Features):
+class Resnet18Features(Features):
     def __init__(self, is_color, img_sample_sz=[], size_mode='same'):
         super().__init__(is_color)
         use_for_color = settings.cnn_params.get('useForColor', True)
         use_for_gray = settings.cnn_params.get('useForGray', True)
         self.use_feature = (use_for_color and is_color) or (use_for_gray and not is_color)
 
-        self.net = vision.resnet50_v2(pretrained=True, ctx = mx.cpu(0))
+        self.net = vision.resnet18_v2(pretrained=True, ctx = mx.cpu(0))
         self.compressed_dim = settings.cnn_params['compressed_dim']
         self.cell_size = np.array([4, 16])
         self.penalty = np.zeros((2, 1))
-        self.nDim = np.array([64, 1024])
+        self.nDim = np.array([64, 256])
         self.img_sample_sz = self._set_size(img_sample_sz, size_mode)
         self.data_sz = np.ceil(self.img_sample_sz / self.cell_size[:, None])
 
@@ -109,12 +109,12 @@ class ResnetFeatures(Features):
         bn1 = self.net.features[2].forward(conv1)
         relu1 = self.net.features[3].forward(bn1)
         pool1 = self.net.features[4].forward(relu1)   # x4
-        # stage2
-        stage2 = self.net.features[5].forward(pool1)  # x4
-        stage3 = self.net.features[6].forward(stage2) # x8
-        stage4 = self.net.features[7].forward(stage3) # x16
+        # stage1
+        stage1 = self.net.features[5].forward(pool1)  # x4
+        stage2 = self.net.features[6].forward(stage1) # x8
+        stage3 = self.net.features[7].forward(stage2) # x16
         return [pool1.asnumpy().transpose(2, 3, 1, 0),
-                stage4.asnumpy().transpose(2, 3, 1, 0)]
+                stage3.asnumpy().transpose(2, 3, 1, 0)]
 
     def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
         if len(im.shape) == 2:
@@ -136,7 +136,55 @@ class ResnetFeatures(Features):
         return f1, f2
 
 
-class CNNFeatures(Features):
+class Resnet50Features(Features):
+    def __init__(self, is_color, img_sample_sz=[], size_mode='same'):
+        super().__init__(is_color)
+        use_for_color = settings.cnn_params.get('useForColor', True)
+        use_for_gray = settings.cnn_params.get('useForGray', True)
+        self.use_feature = (use_for_color and is_color) or (use_for_gray and not is_color)
+
+        self.net = vision.resnet50_v2(pretrained=True, ctx = mx.cpu(0))
+        self.compressed_dim = settings.cnn_params['compressed_dim']
+        self.cell_size = np.array([4, 16])
+        self.penalty = np.zeros((2, 1))
+        self.nDim = np.array([64, 1024])
+        self.img_sample_sz = self._set_size(img_sample_sz, size_mode)
+        self.data_sz = np.ceil(self.img_sample_sz / self.cell_size[:, None])
+
+    def forward_pass(self, x):
+        bn0 = self.net.features[0].forward(x)
+        conv1 = self.net.features[1].forward(bn0)     # x2
+        bn1 = self.net.features[2].forward(conv1)
+        relu1 = self.net.features[3].forward(bn1)
+        pool1 = self.net.features[4].forward(relu1)   # x4
+        # stage1
+        stage1 = self.net.features[5].forward(pool1)  # x4
+        stage2 = self.net.features[6].forward(stage1) # x8
+        stage3 = self.net.features[7].forward(stage2) # x16
+        return [pool1.asnumpy().transpose(2, 3, 1, 0),
+                stage3.asnumpy().transpose(2, 3, 1, 0)]
+
+    def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
+        if len(im.shape) == 2:
+            im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
+        if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
+            scale_factor = [scale_factor]
+        patches = []
+        for scale in scale_factor:
+            patch = self.get_sample(im, pos, sample_sz*scale, sample_sz)
+            patch = mx.nd.array(patch / 255.)
+            normalized = mx.image.color_normalize(patch, mean=mx.nd.array([0.485, 0.456, 0.406]),
+                                                        std=mx.nd.array([0.229, 0.224, 0.225]))
+            normalized = normalized.transpose((2, 0, 1)).expand_dims(axis=0)
+            patches.append(normalized)
+        patches = mx.nd.concat(*patches, dim=0)
+        f1, f2 = self.forward_pass(patches)
+        f1 = self.feature_normalization(f1)
+        f2 = self.feature_normalization(f2)
+        return f1, f2
+
+
+class VGGFeatures(Features):
     def __init__(self, is_color, img_sample_sz=[], size_mode='same'):
         super().__init__(is_color)
         use_for_color = settings.cnn_params.get('useForColor', True)

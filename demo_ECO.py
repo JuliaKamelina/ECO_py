@@ -11,7 +11,7 @@ from implementation import Tracker
 from implementation.utils import load_video_info, get_sequence_info
 
 
-def demo_tracker(video_path):
+def demo_tracker(video_path, no_show):
     seq, ground_truth = load_video_info(video_path)
     seq = get_sequence_info(seq)
     frames = [np.array(Image.open(f)) for f in seq["image_files"]]
@@ -43,12 +43,14 @@ def demo_tracker(video_path):
                               (0, 255, 0), 1)
         print('gt: ', gt_bbox)
         print("#######################################################################")
-        cv2.imshow('', frame)
-        cv2.waitKey(1)
+        if not no_show:
+            cv2.imshow('', frame)
+            cv2.waitKey(1)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--video", default="sequences/Car1")
+    parser.add_argument("--no_show", action='store_true')
     args = parser.parse_args()
-    demo_tracker(args.video)
+    demo_tracker(args.video, args.no_show)

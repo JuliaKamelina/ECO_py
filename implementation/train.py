@@ -114,11 +114,13 @@ def inner_product_joint(xf, yf):
 
     ip = 0
     for i in range(0, len(xf[0])):
-        ip += 2*np.vdot(xf[0][i].flatten(), yf[0][i].flatten()) - np.vdot(xf[0][i][:, -1, :].flatten(), yf[0][i][:, -1, :].flatten()) # filter part
+        ip += 2*np.vdot(xf[0][i].flatten(), yf[0][i].flatten()) - \
+              np.vdot(xf[0][i][:, -1, :].flatten(), yf[0][i][:, -1, :].flatten()) # filter part
         ip += np.vdot(xf[1][i].flatten(), yf[1][i].flatten()) # projection_matrix part
     return np.real(ip)
 
-def lhs_operation_joint(hf, samplesf, reg_filter, init_samplef, XH, init_hf, proj_reg, use_gpu=False):
+def lhs_operation_joint(hf, samplesf, reg_filter, init_samplef, 
+                        XH, init_hf, proj_reg, use_gpu=False):
     """
         left-hand-side operation in Conjugate Gradient
     """
@@ -156,7 +158,8 @@ def lhs_operation_joint(hf, samplesf, reg_filter, init_samplef, XH, init_hf, pro
     for i in block_inds:
         hf_out1[i] = np.matmul(np.conj(samplesf[i]), sh[pad_sz[i][0]:output_sz[0]-pad_sz[i][0], pad_sz[i][1]:, :, :])
 
-    # operations corresponding to the regularization term (convolve each feature dimension with the DFT of w, and the transposed
+    # operations corresponding to the regularization term
+    # (convolve each feature dimension with the DFT of w, and the transposed
     # operation) add the regularization part
     for i in range(0, num_features):
         reg_pad = min(reg_filter[i].shape[1] - 1, hf[i].shape[1]-1)

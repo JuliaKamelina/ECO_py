@@ -114,7 +114,7 @@ class Tracker:
                             else np.floor(img_sample_sz[1]))
 
         settings.t_features = features = [HOGFeatures(self.is_color_image, img_sample_sz, 'odd_cells'),
-                                          Resnet18Features(self.is_color_image, img_sample_sz, 'odd_cells')]
+                                          Resnet50Features(self.is_color_image, img_sample_sz, 'odd_cells')]
 
         # Set feature info
         self.img_support_sz = features[0].img_sample_sz

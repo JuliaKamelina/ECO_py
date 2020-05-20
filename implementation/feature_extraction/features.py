@@ -88,13 +88,112 @@ class Features():
         return im_patch
 
 
-class CNNFeatures(Features):
+class Resnet18Features(Features):
     def __init__(self, is_color, img_sample_sz=[], size_mode='same'):
         super().__init__(is_color)
         use_for_color = settings.cnn_params.get('useForColor', True)
         use_for_gray = settings.cnn_params.get('useForGray', True)
         self.use_feature = (use_for_color and is_color) or (use_for_gray and not is_color)
-        self.output_layer = settings.cnn_params['output_layer']
+
+        self.net = vision.resnet18_v2(pretrained=True, ctx = mx.cpu(0))
+        self.compressed_dim = settings.cnn_params['compressed_dim']
+        self.cell_size = np.array([4, 16])
+        self.penalty = np.zeros((2, 1))
+        self.nDim = np.array([64, 256])
+        self.img_sample_sz = self._set_size(img_sample_sz, size_mode)
+        self.data_sz = np.ceil(self.img_sample_sz / self.cell_size[:, None])
+
+    def forward_pass(self, x):
+        bn0 = self.net.features[0].forward(x)
+        conv1 = self.net.features[1].forward(bn0)     # x2
+        bn1 = self.net.features[2].forward(conv1)
+        relu1 = self.net.features[3].forward(bn1)
+        pool1 = self.net.features[4].forward(relu1)   # x4
+        # stage1
+        stage1 = self.net.features[5].forward(pool1)  # x4
+        stage2 = self.net.features[6].forward(stage1) # x8
+        stage3 = self.net.features[7].forward(stage2) # x16
+        return [pool1.asnumpy().transpose(2, 3, 1, 0),
+                stage3.asnumpy().transpose(2, 3, 1, 0)]
+
+    def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
+        if len(im.shape) == 2:
+            im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
+        if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
+            scale_factor = [scale_factor]
+        patches = []
+        for scale in scale_factor:
+            patch = self.get_sample(im, pos, sample_sz*scale, sample_sz)
+            patch = mx.nd.array(patch / 255.)
+            normalized = mx.image.color_normalize(patch, mean=mx.nd.array([0.485, 0.456, 0.406]),
+                                                        std=mx.nd.array([0.229, 0.224, 0.225]))
+            normalized = normalized.transpose((2, 0, 1)).expand_dims(axis=0)
+            patches.append(normalized)
+        patches = mx.nd.concat(*patches, dim=0)
+        f1, f2 = self.forward_pass(patches)
+        f1 = self.feature_normalization(f1)
+        f2 = self.feature_normalization(f2)
+        return f1, f2
+
+
+class Resnet50Features(Features):
+    def __init__(self, is_color, img_sample_sz=[], size_mode='same'):
+        super().__init__(is_color)
+        use_for_color = settings.cnn_params.get('useForColor', True)
+        use_for_gray = settings.cnn_params.get('useForGray', True)
+        self.use_feature = (use_for_color and is_color) or (use_for_gray and not is_color)
+
+        self.net = vision.resnet50_v2(pretrained=True, ctx = mx.cpu(0))
+        self.compressed_dim = settings.cnn_params['compressed_dim']
+        self.cell_size = np.array([4, 16])
+        self.penalty = np.zeros((2, 1))
+        self.nDim = np.array([64, 1024])
+        self.img_sample_sz = self._set_size(img_sample_sz, size_mode)
+        self.data_sz = np.ceil(self.img_sample_sz / self.cell_size[:, None])
+
+    def forward_pass(self, x):
+        bn0 = self.net.features[0].forward(x)
+        conv1 = self.net.features[1].forward(bn0)     # x2
+        bn1 = self.net.features[2].forward(conv1)
+        relu1 = self.net.features[3].forward(bn1)
+        pool1 = self.net.features[4].forward(relu1)   # x4
+        # stage1
+        stage1 = self.net.features[5].forward(pool1)  # x4
+        stage2 = self.net.features[6].forward(stage1) # x8
+        stage3 = self.net.features[7].forward(stage2) # x16
+        return [pool1.asnumpy().transpose(2, 3, 1, 0),
+                stage3.asnumpy().transpose(2, 3, 1, 0)]
+
+    def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
+        if len(im.shape) == 2:
+            im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
+        if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
+            scale_factor = [scale_factor]
+        patches = []
+        for scale in scale_factor:
+            patch = self.get_sample(im, pos, sample_sz*scale, sample_sz)
+            patch = mx.nd.array(patch / 255.)
+            normalized = mx.image.color_normalize(patch, mean=mx.nd.array([0.485, 0.456, 0.406]),
+                                                        std=mx.nd.array([0.229, 0.224, 0.225]))
+            normalized = normalized.transpose((2, 0, 1)).expand_dims(axis=0)
+            patches.append(normalized)
+        patches = mx.nd.concat(*patches, dim=0)
+        f1, f2 = self.forward_pass(patches)
+        f1 = self.feature_normalization(f1)
+        f2 = self.feature_normalization(f2)
+        return f1, f2
+
+
+class VGGFeatures(Features):
+    def __init__(self, is_color, img_sample_sz=[], size_mode='same'):
+        super().__init__(is_color)
+        use_for_color = settings.cnn_params.get('useForColor', True)
+        use_for_gray = settings.cnn_params.get('useForGray', True)
+
+        self.net = vision.vgg16(pretrained=True)
+        self.pool2d = AvgPool2D()
+
+        self.use_feature = (use_for_color and is_color) or (use_for_gray and not is_color)
         self.nDim = np.array([64, 512]) #[96 512] net["info"]["dataSize"][layer_dim_ind, 2]
         self.cell_size = np.array([4, 16])
         self.penalty = np.zeros((2, 1))
@@ -102,39 +201,35 @@ class CNNFeatures(Features):
         self.img_sample_sz = self._set_size(img_sample_sz, size_mode)
         self.data_sz = np.ceil(self.img_sample_sz / self.cell_size[:, None])
 
-    @staticmethod
-    def forward_pass(x):
-        vgg16 = vision.vgg16(pretrained=True)
-        avg_pool2d = AvgPool2D()
+    def forward_pass(self, x):
+        conv1_1 = self.net.features[0].forward(x)
+        relu1_1 = self.net.features[1].forward(conv1_1)
+        conv1_2 = self.net.features[2].forward(relu1_1)
+        relu1_2 = self.net.features[3].forward(conv1_2)
+        pool1 = self.net.features[4].forward(relu1_2) # x2
+        pool_avg = self.pool2d(pool1)
 
-        conv1_1 = vgg16.features[0].forward(x)
-        relu1_1 = vgg16.features[1].forward(conv1_1)
-        conv1_2 = vgg16.features[2].forward(relu1_1)
-        relu1_2 = vgg16.features[3].forward(conv1_2)
-        pool1 = vgg16.features[4].forward(relu1_2) # x2
-        pool_avg = avg_pool2d(pool1)
+        conv2_1 = self.net.features[5].forward(pool1)
+        relu2_1 = self.net.features[6].forward(conv2_1)
+        conv2_2 = self.net.features[7].forward(relu2_1)
+        relu2_2 = self.net.features[8].forward(conv2_2)
+        pool2 = self.net.features[9].forward(relu2_2) # x4
 
-        conv2_1 = vgg16.features[5].forward(pool1)
-        relu2_1 = vgg16.features[6].forward(conv2_1)
-        conv2_2 = vgg16.features[7].forward(relu2_1)
-        relu2_2 = vgg16.features[8].forward(conv2_2)
-        pool2 = vgg16.features[9].forward(relu2_2) # x4
+        conv3_1 = self.net.features[10].forward(pool2)
+        relu3_1 = self.net.features[11].forward(conv3_1)
+        conv3_2 = self.net.features[12].forward(relu3_1)
+        relu3_2 = self.net.features[13].forward(conv3_2)
+        conv3_3 = self.net.features[14].forward(relu3_2)
+        relu3_3 = self.net.features[15].forward(conv3_3)
+        pool3 = self.net.features[16].forward(relu3_3) # x8
 
-        conv3_1 = vgg16.features[10].forward(pool2)
-        relu3_1 = vgg16.features[11].forward(conv3_1)
-        conv3_2 = vgg16.features[12].forward(relu3_1)
-        relu3_2 = vgg16.features[13].forward(conv3_2)
-        conv3_3 = vgg16.features[14].forward(relu3_2)
-        relu3_3 = vgg16.features[15].forward(conv3_3)
-        pool3 = vgg16.features[16].forward(relu3_3) # x8
-
-        conv4_1 = vgg16.features[17].forward(pool3)
-        relu4_1 = vgg16.features[18].forward(conv4_1)
-        conv4_2 = vgg16.features[19].forward(relu4_1)
-        relu4_2 = vgg16.features[20].forward(conv4_2)
-        conv4_3 = vgg16.features[21].forward(relu4_2)
-        relu4_3 = vgg16.features[22].forward(conv4_3)
-        pool4 = vgg16.features[23].forward(relu4_3) # x16
+        conv4_1 = self.net.features[17].forward(pool3)
+        relu4_1 = self.net.features[18].forward(conv4_1)
+        conv4_2 = self.net.features[19].forward(relu4_1)
+        relu4_2 = self.net.features[20].forward(conv4_2)
+        conv4_3 = self.net.features[21].forward(relu4_2)
+        relu4_3 = self.net.features[22].forward(conv4_3)
+        pool4 = self.net.features[23].forward(relu4_3) # x16
         return [pool_avg.asnumpy().transpose(2, 3, 1, 0),
                 pool4.asnumpy().transpose(2, 3, 1, 0)]
 

@@ -210,7 +210,7 @@ class Tracker:
         sample_scale = self.currentScaleFactor
         xl = [x for i in range(0, len(features))
                 for x in features[i].get_feature(frame, self.sample_pos, features[i].img_sample_sz,
-                                                self.currentScaleFactor, i)]
+                                                self.currentScaleFactor)]
         # print(xl)
 
         xlw = [x * y for x, y in zip(xl, self.cos_window)]      # do windowing of feature

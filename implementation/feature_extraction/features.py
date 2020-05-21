@@ -20,8 +20,8 @@ class Features():
         res[1] = np.ceil(x[1]) if x[1] - np.floor(x[1]) >= 0.5 else np.floor(x[1])
         return res
 
-    @staticmethod
-    def _set_size(img_sample_sz, size_mode):
+    # @staticmethod
+    def _set_size(self, img_sample_sz, size_mode):
         new_img_sample_sz = np.array(img_sample_sz, dtype=np.int32)
         if size_mode != "same" and settings.cnn_params['input_size_mode'] == "adaptive":
             orig_sz = np.ceil(new_img_sample_sz/16)
@@ -38,7 +38,7 @@ class Features():
             img_sample_sz = np.array(img_sample_sz) #net["meta"].normalization.imageSize[0:2]
         return img_sample_sz
 
-    def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
+    def get_feature(self, im, pos, sample_sz, scale_factor):
         pass
 
     def feature_normalization(self, x):
@@ -116,7 +116,7 @@ class Resnet18Features(Features):
         return [pool1.asnumpy().transpose(2, 3, 1, 0),
                 stage3.asnumpy().transpose(2, 3, 1, 0)]
 
-    def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
+    def get_feature(self, im, pos, sample_sz, scale_factor):
         if len(im.shape) == 2:
             im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
         if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
@@ -164,7 +164,7 @@ class Resnet50Features(Features):
         return [pool1.asnumpy().transpose(2, 3, 1, 0),
                 stage3.asnumpy().transpose(2, 3, 1, 0)]
 
-    def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
+    def get_feature(self, im, pos, sample_sz, scale_factor):
         if len(im.shape) == 2:
             im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
         if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
@@ -233,7 +233,7 @@ class VGGFeatures(Features):
         return [pool_avg.asnumpy().transpose(2, 3, 1, 0),
                 pool4.asnumpy().transpose(2, 3, 1, 0)]
 
-    def get_feature(self, im, pos, sample_sz, scale_factor, feat_index):
+    def get_feature(self, im, pos, sample_sz, scale_factor):
         if len(im.shape) == 2:
             im = cv.cvtColor(im.squeeze(), cv.COLOR_GRAY2RGB)
         if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
@@ -266,7 +266,7 @@ class HOGFeatures(Features):
         self.cell_size = settings.hog_params.get('cell_size')
         self.data_sz = np.ceil(self.img_sample_sz / self.cell_size)
 
-    def get_feature(self, img, pos, sample_sz, scale_factor, feat_index=1):
+    def get_feature(self, img, pos, sample_sz, scale_factor):
         feat = []
         if not isinstance(scale_factor, list) and not isinstance(scale_factor, np.ndarray):
             scale_factor = [scale_factor]
@@ -316,7 +316,7 @@ class TableFeatures(Features):
         region_image = (intImage[i1, i2, :] - intImage[i1, i2-region_size,:] - intImage[i1-region_size, i2, :] + intImage[i1-region_size, i2-region_size, :])  / (region_area * maxval)
         return region_image
 
-    def get_feature(self, img, pos, sample_sz, scale_factor, feat_index):
+    def get_feature(self, img, pos, sample_sz, scale_factor):
         feat = []
         factor = 32
         den = 8

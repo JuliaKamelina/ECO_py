@@ -1,8 +1,6 @@
 import numpy as np
-import cv2 as cv
 import math
 import time
-import sys
 
 # import cProfile
 
@@ -20,14 +18,9 @@ from .train import train_joint, train_filter
 from .optimize_scores import *
 from .scale_filter import ScaleFilter
 from .runfiles import settings
+from .utils import _round
 
-def _round(x):
-    res = x.copy()
-    res[0] = np.ceil(x[0]) if x[0] - np.floor(x[0]) >= 0.5 else np.floor(x[0])
-    res[1] = np.ceil(x[1]) if x[1] - np.floor(x[1]) >= 0.5 else np.floor(x[1])
-    return res
-
-class Tracker:
+class ECOTracker:
     def InitCG(self):
         self.init_CG_opts = {
             "CG_use_FR": True,

@@ -1,8 +1,13 @@
+import os
+import importlib
+import inspect
+
+import cv2 as cv
 import mxnet as mx
 import numpy as np
-import cv2 as cv
+import torch
+import torch.nn.functional as F
 import scipy.io
-import os
 
 from mxnet.gluon.model_zoo import vision
 from mxnet.gluon.nn import AvgPool2D
@@ -346,3 +351,90 @@ def _fhog(I, bin_size=8, num_orients=9, clip=0.2, crop=False):
     M, O = gradMag(I.astype(np.float32), 0, True)
     H = fhog(M, O, bin_size, num_orients, soft_bin, clip)
     return H
+
+
+class PrDiMPFeatures(Features):
+    def __init__(self, is_color, net_path, device='cpu'):
+        super().__init__(is_color)
+        self.net_path = net_path
+        _mean = (0.485, 0.456, 0.406)
+        _std = (0.229, 0.224, 0.225)
+        self._mean = torch.Tensor(_mean).view(1, -1, 1, 1)
+        self._std = torch.Tensor(_std).view(1, -1, 1, 1)
+        self.load_network()
+        self.device = device
+
+    def load_network(self, backbone_pretrained=False):
+        weight_dict = torch.load(self.net_path, map_location='cpu')
+        net_constr = weight_dict['constructor']
+        net_fun = getattr(importlib.import_module(net_constr.fun_module), net_constr.fun_name)
+        net_fun_args = list(inspect.signature(net_fun).parameters.keys())
+        if 'backbone_pretrained' in net_fun_args:
+            net_constr.kwds['backbone_pretrained'] = backbone_pretrained
+        self.net = net_constr.get()
+        self.net.load_state_dict(weight_dict['net'])
+        self.net.constructor = weight_dict['constructor']
+        self.net.eval()
+
+    def sample_patch_transformed(self, im, pos, scale, image_sz, transforms):
+        im_patch = self.get_sample(im, pos, scale*image_sz, image_sz)
+        im_patches = torch.cat([T(im_patch, is_mask=False) for T in transforms])
+        return im_patches
+
+    def sample_patch_multiscale(im, pos, scales, image_sz, mode: str='replicate', max_scale_change=None):
+    if isinstance(scales, (int, float)):
+        scales = [scales]
+
+    # Get image patches
+    patch_iter, coord_iter = zip(*(self.get_sample(im, pos, s*image_sz, image_sz, mode=mode,
+                                                max_scale_change=max_scale_change) for s in scales))
+    im_patches = torch.cat(list(patch_iter))
+    patch_coords = torch.cat(list(coord_iter))
+
+    return  im_patches, patch_coords
+
+    def get_sample(self, im, pos, img_sample_sz, output_sz):
+        posl = pos.copy()
+        if output_sz is not None:
+            resize_factor = np.min(img_sample_sz / output_sz)
+            df = int(max(int(resize_factor - 0.1), 1))
+        else:
+            df = int(1)
+        sz = img_sample_sz / df
+
+        if df > 1:
+            os = posl % df              # offset
+            posl = (posl - os) // df     # new position
+            im2 = im[..., os[0]::df, os[1]::df]   # downsample
+        else:
+            im2 = im
+
+        szl = np.max(sz.round(), np.array([2]))
+
+        # Extract top and bottom coordinates
+        tl = posl - (szl - 1) // 2
+        br = posl + szl//2 + 1
+
+        im_patch = F.pad(im2, (-tl[1], br[1] - im2.shape[3], -tl[0], br[0] - im2.shape[2]), 'replicate')
+        # patch_coord = df * torch.cat((tl, br)).view(1, 4)
+
+        if output_sz is None or (im_patch.shape[-2] == output_sz[0] and im_patch.shape[-1] == output_sz[1]):
+            return im_patch.clone()
+
+        im_patch = F.interpolate(im_patch, output_sz.tolist(), mode='bilinear')
+
+        return im_patch
+
+    def preprocess_image(self, im):
+        im = im/255
+        im -= self._mean
+        im /= self._std
+
+        if self.device == 'cuda:0':
+            im = im.cuda()
+
+        return im
+
+    def extract_backbone(self, im: torch.Tensor):
+        im = self.preprocess_image(im)
+        return self.net.extract_backbone_features(im)

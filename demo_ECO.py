@@ -7,7 +7,7 @@ import argparse
 from PIL import Image
 sys.path.append('./')
 
-from implementation import Tracker
+from implementation import ECOTracker
 from implementation.utils import load_video_info, get_sequence_info
 
 
@@ -16,7 +16,7 @@ def demo_tracker(video_path, no_show):
     seq = get_sequence_info(seq)
     frames = [np.array(Image.open(f)) for f in seq["image_files"]]
     is_color = True if (len(frames[0].shape) == 3) else False
-    tracker = Tracker(seq, frames[0], is_color)
+    tracker = ECOTracker(seq, frames[0], is_color)
     for i, frame in enumerate(frames):
         if i == 0:
             bbox, time = tracker.init_tracker(frame)

@@ -1,6 +1,6 @@
 import numpy as np
 
-class OTBDeep:
+class ECOOTBDeep:
     hog_params = {
         "cell_size": 4,
         "compressed_dim": [10]

@@ -1,4 +1,6 @@
-from .otb_deep_settings import OTBDeep
+from .eco_otb_deep_settings import ECOOTBDeep
 from .otb_hc_settings import OTBHC
+from .prdimp_settings import PrDiMPParams
 
-settings = OTBDeep()
+# settings = ECOOTBDeep()
+settings = PrDiMPParams()

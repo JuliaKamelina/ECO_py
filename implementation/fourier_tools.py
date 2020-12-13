@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 def fft2(x):
     return np.fft.fft(np.fft.fft(x, axis=1), axis=0).astype(np.complex64)
@@ -96,3 +97,13 @@ def resize_DFT(inputdft, desired_len):
     resize_dft[:mids] = scaling * inputdft[:mids]
     resize_dft[-mide:] = scaling * inputdft[-mide:]
     return resize_dft
+
+def max2d(a: torch.Tensor) -> (torch.Tensor, torch.Tensor):
+    """Computes maximum and argmax in the last two dimensions."""
+
+    max_val_row, argmax_row = torch.max(a, dim=-2)
+    max_val, argmax_col = torch.max(max_val_row, dim=-1)
+    argmax_row = argmax_row.view(argmax_col.numel(),-1)[torch.arange(argmax_col.numel()), argmax_col.view(-1)]
+    argmax_row = argmax_row.reshape(argmax_col.shape)
+    argmax = torch.cat((argmax_row.unsqueeze(-1), argmax_col.unsqueeze(-1)), -1)
+    return max_val, argmax

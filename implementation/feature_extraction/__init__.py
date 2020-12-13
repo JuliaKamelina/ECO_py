@@ -5,4 +5,5 @@ from .features import (
     HOGFeatures,
     TableFeatures,
     _fhog,
+    PrDiMPFeatures,
 )

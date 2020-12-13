@@ -1,4 +1,4 @@
-from .tracker import Tracker
+from .eco_tracker import ECOTracker
 from .dim_reduction import *
 from .optimize_scores import optimize_scores
 from .sample_space_model import SampleSpace

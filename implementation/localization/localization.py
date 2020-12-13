@@ -7,8 +7,8 @@ from ..runfiles import settings
 from ..fourier_tools import max2d
 from ..utils import TensorList
 
-from ltr.models.layers import activation
-import ltr.data.bounding_box_utils as bbutils
+from pytracking.ltr.models.layers import activation
+import pytracking.ltr.data.bounding_box_utils as bbutils
 
 def localize_target(scores, sample_pos, sample_scales, tracker):
     scores = scores.squeeze(1)

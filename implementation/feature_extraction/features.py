@@ -381,20 +381,31 @@ class PrDiMPFeatures(Features):
         im_patches = torch.cat([T(im_patch, is_mask=False) for T in transforms])
         return im_patches
 
-    def sample_patch_multiscale(im, pos, scales, image_sz, mode: str='replicate', max_scale_change=None):
-    if isinstance(scales, (int, float)):
-        scales = [scales]
+    def sample_patch_multiscale(self, im, pos, scales, image_sz, mode: str='replicate', max_scale_change=None):
+        if isinstance(scales, (int, float)):
+            scales = [scales]
 
-    # Get image patches
-    patch_iter, coord_iter = zip(*(self.get_sample(im, pos, s*image_sz, image_sz, mode=mode,
-                                                max_scale_change=max_scale_change) for s in scales))
-    im_patches = torch.cat(list(patch_iter))
-    patch_coords = torch.cat(list(coord_iter))
+        # Get image patches
+        patch_iter, coord_iter = zip(*(self.get_sample(im, pos, s*image_sz, image_sz, mode=mode,
+                                                    max_scale_change=max_scale_change) for s in scales))
+        im_patches = torch.cat(list(patch_iter))
+        patch_coords = torch.cat(list(coord_iter))
 
-    return  im_patches, patch_coords
+        return  im_patches, patch_coords
 
-    def get_sample(self, im, pos, img_sample_sz, output_sz):
+    def get_sample(self, im, pos, img_sample_sz, output_sz, mode, max_scale_change):
         posl = pos.copy()
+
+        pad_mode = mode
+        im_sz = torch.Tensor([im.shape[2], im.shape[3]])
+        shrink_factor = (img_sample_sz.float() / im_sz)
+        # if mode == 'inside':
+        #     shrink_factor = shrink_factor.max()
+        # elif mode == 'inside_major':
+        shrink_factor = shrink_factor.min()
+        shrink_factor.clamp_(min=1, max=max_scale_change)
+        img_sample_sz = (img_sample_sz.float() / shrink_factor).long()
+
         if output_sz is not None:
             resize_factor = np.min(img_sample_sz / output_sz)
             df = int(max(int(resize_factor - 0.1), 1))
@@ -415,7 +426,17 @@ class PrDiMPFeatures(Features):
         tl = posl - (szl - 1) // 2
         br = posl + szl//2 + 1
 
-        im_patch = F.pad(im2, (-tl[1], br[1] - im2.shape[3], -tl[0], br[0] - im2.shape[2]), 'replicate')
+        im2_sz = torch.LongTensor([im2.shape[2], im2.shape[3]])
+        shift = (-tl).clamp(0) - (br - im2_sz).clamp(0)
+        tl += shift
+        br += shift
+
+        outside = ((-tl).clamp(0) + (br - im2_sz).clamp(0)) // 2
+        shift = (-tl - outside) * (outside > 0).long()
+        tl += shift
+        br += shift
+
+        im_patch = F.pad(im2, (-tl[1], br[1] - im2.shape[3], -tl[0], br[0] - im2.shape[2]), pad_mode)
         # patch_coord = df * torch.cat((tl, br)).view(1, 4)
 
         if output_sz is None or (im_patch.shape[-2] == output_sz[0] and im_patch.shape[-1] == output_sz[1]):

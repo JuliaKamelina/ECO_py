@@ -7,8 +7,8 @@ from ..runfiles import settings
 from ..fourier_tools import max2d
 from ..utils import TensorList
 
-from pytracking.ltr.models.layers import activation
-import pytracking.ltr.data.bounding_box_utils as bbutils
+from ..pytracking.ltr.models.layers import activation
+from ..pytracking.ltr.data.bounding_box_utils import  rect_to_rel, rel_to_rect
 
 def localize_target(scores, sample_pos, sample_scales, tracker):
     scores = scores.squeeze(1)
@@ -129,10 +129,10 @@ def refine_target_box(tracker, backbone_feat, sample_pos, sample_scale, scale_in
     init_boxes = init_box.view(1,4).clone()
     if settings.num_init_random_boxes > 0:
         square_box_sz = init_box[2:].prod().sqrt()
-        rand_factor = square_box_sz * torch.cat([tracker.params.box_jitter_pos * torch.ones(2), tracker.params.box_jitter_sz * torch.ones(2)])
+        rand_factor = square_box_sz * torch.cat([settings.box_jitter_pos * torch.ones(2), settings.box_jitter_sz * torch.ones(2)])
 
         minimal_edge_size = init_box[2:].min()/3
-        rand_bb = (torch.rand(tracker.params.num_init_random_boxes, 4) - 0.5) * rand_factor
+        rand_bb = (torch.rand(settings.num_init_random_boxes, 4) - 0.5) * rand_factor
         new_sz = (init_box[2:] + rand_bb[:,2:]).clamp(minimal_edge_size)
         new_center = (init_box[:2] + init_box[2:]/2) + rand_bb[:,:2]
         init_boxes = torch.cat([new_center - new_sz/2, new_sz], 1)
@@ -144,7 +144,7 @@ def refine_target_box(tracker, backbone_feat, sample_pos, sample_scale, scale_in
     # Remove weird boxes
     output_boxes[:, 2:].clamp_(1)
     aspect_ratio = output_boxes[:,2] / output_boxes[:,3]
-    keep_ind = (aspect_ratio < tracker.params.maximal_aspect_ratio) * (aspect_ratio > 1/tracker.params.maximal_aspect_ratio)
+    keep_ind = (aspect_ratio < settings.maximal_aspect_ratio) * (aspect_ratio > 1/settings.maximal_aspect_ratio)
     output_boxes = output_boxes[keep_ind,:]
     output_iou = output_iou[keep_ind]
 
@@ -220,13 +220,13 @@ def optimize_boxes_relative(tracker, iou_features, init_boxes):
         step_length = torch.Tensor([step_length[0], step_length[0], step_length[1], step_length[1]]).to(settings.device).view(1,1,4)
 
     sz_norm = output_boxes[:,:1,2:].clone()
-    output_boxes_rel = bbutils.rect_to_rel(output_boxes, sz_norm)
+    output_boxes_rel = rect_to_rel(output_boxes, sz_norm)
     for _ in range(settings.box_refinement_iter):
         # forward pass
         bb_init_rel = output_boxes_rel.clone().detach()
         bb_init_rel.requires_grad = True
 
-        bb_init = bbutils.rel_to_rect(bb_init_rel, sz_norm)
+        bb_init = rel_to_rect(bb_init_rel, sz_norm)
         outputs = tracker.features.net.bb_regressor.predict_iou(tracker.iou_modulation, iou_features, bb_init)
 
         if isinstance(outputs, (list, tuple)):
@@ -245,6 +245,6 @@ def optimize_boxes_relative(tracker, iou_features, init_boxes):
     #     print('')
     # print('')
 
-    output_boxes = bbutils.rel_to_rect(output_boxes_rel, sz_norm)
+    output_boxes = rel_to_rect(output_boxes_rel, sz_norm)
 
     return output_boxes.view(-1,4).cpu(), outputs.detach().view(-1).cpu()

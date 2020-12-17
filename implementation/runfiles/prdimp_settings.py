@@ -1,7 +1,7 @@
 import numpy as np
 
 class PrDiMPParams:
-    device = 'cpu'
+    device = 'cuda'
     debug = True
     image_sample_size = 22*16
     search_area_scale = 6

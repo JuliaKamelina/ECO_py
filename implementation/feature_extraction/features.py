@@ -361,8 +361,8 @@ class PrDiMPFeatures(Features):
         _std = (0.229, 0.224, 0.225)
         self._mean = torch.Tensor(_mean).view(1, -1, 1, 1)
         self._std = torch.Tensor(_std).view(1, -1, 1, 1)
-        self.load_network()
         self.device = device
+        self.load_network()
 
     def load_network(self, backbone_pretrained=False):
         weight_dict = torch.load(self.net_path, map_location='cpu')
@@ -374,10 +374,12 @@ class PrDiMPFeatures(Features):
         self.net = net_constr.get()
         self.net.load_state_dict(weight_dict['net'])
         self.net.constructor = weight_dict['constructor']
+        if self.device == 'cuda':
+            self.net.cuda()
         self.net.eval()
 
     def sample_patch_transformed(self, im, pos, scale, image_sz, transforms):
-        im_patch = self.get_sample(im, pos, scale*image_sz, image_sz)
+        im_patch, _ = self.get_sample(im, pos, scale*image_sz, image_sz)
         im_patches = torch.cat([T(im_patch, is_mask=False) for T in transforms])
         return im_patches
 
@@ -393,21 +395,23 @@ class PrDiMPFeatures(Features):
 
         return  im_patches, patch_coords
 
-    def get_sample(self, im, pos, img_sample_sz, output_sz, mode, max_scale_change):
-        posl = pos.copy()
+    def get_sample(self, im, pos, img_sample_sz, output_sz, mode='replicate', max_scale_change=None):
+        posl = pos.clone().long()
 
         pad_mode = mode
-        im_sz = torch.Tensor([im.shape[2], im.shape[3]])
-        shrink_factor = (img_sample_sz.float() / im_sz)
-        # if mode == 'inside':
-        #     shrink_factor = shrink_factor.max()
-        # elif mode == 'inside_major':
-        shrink_factor = shrink_factor.min()
-        shrink_factor.clamp_(min=1, max=max_scale_change)
-        img_sample_sz = (img_sample_sz.float() / shrink_factor).long()
+        if mode == 'inside' or mode == 'inside_major':
+            pad_mode = 'replicate'
+            im_sz = torch.Tensor([im.shape[2], im.shape[3]])
+            shrink_factor = (img_sample_sz.float() / im_sz)
+            if mode == 'inside':
+                shrink_factor = shrink_factor.max()
+            elif mode == 'inside_major':
+                shrink_factor = shrink_factor.min()
+            shrink_factor.clamp_(min=1, max=max_scale_change)
+            img_sample_sz = (img_sample_sz.float() / shrink_factor).long()
 
         if output_sz is not None:
-            resize_factor = np.min(img_sample_sz / output_sz)
+            resize_factor = torch.min(img_sample_sz / output_sz)
             df = int(max(int(resize_factor - 0.1), 1))
         else:
             df = int(1)
@@ -420,38 +424,41 @@ class PrDiMPFeatures(Features):
         else:
             im2 = im
 
-        szl = np.max(sz.round(), np.array([2]))
+        sz = torch.Tensor(sz)
+        szl = torch.max(sz.round(), torch.Tensor([2])).long()
 
         # Extract top and bottom coordinates
         tl = posl - (szl - 1) // 2
         br = posl + szl//2 + 1
 
-        im2_sz = torch.LongTensor([im2.shape[2], im2.shape[3]])
-        shift = (-tl).clamp(0) - (br - im2_sz).clamp(0)
-        tl += shift
-        br += shift
+        if mode == 'inside' or mode == 'inside_major':
+            im2_sz = torch.LongTensor([im2.shape[2], im2.shape[3]])
+            shift = (-tl).clamp(0) - (br - im2_sz).clamp(0)
+            tl += shift
+            br += shift
 
-        outside = ((-tl).clamp(0) + (br - im2_sz).clamp(0)) // 2
-        shift = (-tl - outside) * (outside > 0).long()
-        tl += shift
-        br += shift
+            outside = ((-tl).clamp(0) + (br - im2_sz).clamp(0)) // 2
+            shift = (-tl - outside) * (outside > 0).long()
+            tl += shift
+            br += shift
 
-        im_patch = F.pad(im2, (-tl[1], br[1] - im2.shape[3], -tl[0], br[0] - im2.shape[2]), pad_mode)
-        # patch_coord = df * torch.cat((tl, br)).view(1, 4)
+        im_patch = F.pad(im2, (-tl[1].item(), br[1].item() - im2.shape[3], -tl[0].item(), br[0].item() - im2.shape[2]), pad_mode)
+        patch_coord = df * torch.cat((tl, br)).view(1, 4)
 
         if output_sz is None or (im_patch.shape[-2] == output_sz[0] and im_patch.shape[-1] == output_sz[1]):
-            return im_patch.clone()
+            return im_patch.clone(), patch_coord
 
-        im_patch = F.interpolate(im_patch, output_sz.tolist(), mode='bilinear')
+        output_sz = torch.Tensor(output_sz)
+        im_patch = F.interpolate(im_patch, output_sz.long().tolist(), mode='bilinear')
 
-        return im_patch
+        return im_patch, patch_coord
 
     def preprocess_image(self, im):
         im = im/255
         im -= self._mean
         im /= self._std
 
-        if self.device == 'cuda:0':
+        if self.device == 'cuda':
             im = im.cuda()
 
         return im

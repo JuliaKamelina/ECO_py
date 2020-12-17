@@ -39,7 +39,7 @@ class Transform:
             pad_top = math.floor(pad_h) + self.shift[0]
             pad_bottom = math.ceil(pad_h) - self.shift[0]
 
-            return F.pad(image, (pad_left, pad_right, pad_top, pad_bottom), 'replicate')
+            return F.pad(image, (int(pad_left), int(pad_right), int(pad_top), int(pad_bottom)), 'replicate')
         else:
             raise NotImplementedError
 

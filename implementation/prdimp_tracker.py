@@ -12,22 +12,22 @@ from .utils import _round, TensorList, plot_graph, show_tensor
 class PrDiMPTracker:
     def __init__(self, seq, image_sz, net_path, is_color=True):
         self.is_color_image = is_color
-        self.pos = seq["init_pos"]
-        self.target_sz = seq["init_sz"]
+        self.pos = torch.Tensor(seq["init_pos"])
+        self.target_sz = torch.Tensor(seq["init_sz"])
         self.frame_num = 1
         self.features = PrDiMPFeatures(is_color, net_path, settings.device)
         # im = torch.from_numpy(im).float().permute(2, 0, 1).unsqueeze(0)
-        self.image_sz = image_sz
+        self.image_sz = torch.Tensor(image_sz)
         sz = [settings.image_sample_size, settings.image_sample_size]
-        self.img_sample_sz = np.array(sz)
+        self.img_sample_sz = torch.Tensor(sz)
         self.img_support_sz = self.img_sample_sz
-        search_area = np.prod(self.target_sz * settings.search_area_scale)
-        self.target_scale =  np.sqrt(search_area) / np.sqrt(self.img_sample_sz.prod())
+        search_area = torch.prod(self.target_sz * settings.search_area_scale)
+        self.target_scale =  math.sqrt(search_area) / self.img_sample_sz.prod().sqrt()
         self.base_target_sz = self.target_sz / self.target_scale
         if not hasattr(settings, 'scale_factors'):
-            settings.scale_factors = np.ones(1)
-        self.min_scale_factor = np.max(10 / self.base_target_sz)
-        self.max_scale_factor = np.min(self.image_sz / self.base_target_sz)
+            settings.scale_factors = torch.ones(1)
+        self.min_scale_factor = torch.max(10 / self.base_target_sz)
+        self.max_scale_factor = torch.min(self.image_sz / self.base_target_sz)
     
     def initialize(self, im):
         tic = time.time()
@@ -131,7 +131,8 @@ class PrDiMPTracker:
                                                            mode=settings.border_mode,
                                                            max_scale_change=settings.patch_max_scale_change)
         with torch.no_grad():
-            backbone_feat = self.features.net.extract_backbone(im_patches)
+            im_patches = self.features.preprocess_image(im_patches)
+            backbone_feat = self.features.net.extract_backbone_features(im_patches)
         return backbone_feat, patch_coords, im_patches
 
     def get_sample_location(self, sample_coord):
@@ -198,28 +199,28 @@ class PrDiMPTracker:
 
     def generate_init_samples(self, im):
         self.init_sample_scale = self.target_scale
-        global_shift = np.zeros(2)
-        self.init_sample_pos = _round(self.pos)
+        global_shift = torch.zeros(2)
+        self.init_sample_pos = self.pos.round()
         aug_expansion_factor = settings.augmentation_expansion_factor
-        aug_expansion_sz = self.img_sample_sz.copy()
+        aug_expansion_sz = self.img_sample_sz.clone()
         aug_output_sz = None
         if aug_expansion_factor != 1:
             aug_expansion_sz = (self.img_sample_sz * aug_expansion_factor)
             aug_expansion_sz += (aug_expansion_sz - self.img_sample_sz) % 2
-            aug_expansion_sz = aug_expansion_sz.astype(float)
+            aug_expansion_sz = aug_expansion_sz.float()
             aug_output_sz = self.img_sample_sz.tolist()
 
         get_rand_shift = lambda: None
         random_shift_factor = getattr(settings, 'random_shift_factor', 0)
         if random_shift_factor > 0:
-            get_rand_shift = lambda: ((np.rand(2) - 0.5) * self.img_sample_sz * random_shift_factor + global_shift).tolist()
+            get_rand_shift = lambda: ((torch.rand(2) - 0.5) * self.img_sample_sz * random_shift_factor + global_shift).long().tolist()
 
-        self.transforms = [augmentation.Identity(aug_output_sz, global_shift.tolist())]
+        self.transforms = [augmentation.Identity(aug_output_sz, global_shift.long().tolist())]
 
         augs = settings.augmentation if settings.use_augmentation else {}
         if 'relativeshift' in augs:
-            get_absolute = lambda shift: (shift * self.img_sample_sz/2).tolist()
-            self.transforms.extend([augmentation.Translation(get_absolute(shift), aug_output_sz, global_shift.tolist()) for shift in augs['relativeshift']])
+            get_absolute = lambda shift: (torch.Tensor(shift) * self.img_sample_sz/2).long().tolist()
+            self.transforms.extend([augmentation.Translation(get_absolute(shift), aug_output_sz, global_shift.long().tolist()) for shift in augs['relativeshift']])
         if 'fliplr' in augs and augs['fliplr']:
             self.transforms.append(augmentation.FlipHorizontal(aug_output_sz, get_rand_shift()))
         if 'blur' in augs:
@@ -229,7 +230,8 @@ class PrDiMPTracker:
 
         im_patches = self.features.sample_patch_transformed(im, self.init_sample_pos, self.init_sample_scale, aug_expansion_sz, self.transforms)
         with torch.no_grad():
-            init_backbone_feat = self.features.net.extract_backbone(im_patches)
+            im_patches = self.features.preprocess_image(im_patches)
+            init_backbone_feat = self.features.net.extract_backbone_features(im_patches)
 
         return init_backbone_feat
 
@@ -313,6 +315,8 @@ class PrDiMPTracker:
         box_center = (pos - sample_pos) / sample_scale + (self.img_sample_sz - 1) / 2
         box_sz = sz / sample_scale
         target_ul = box_center - (box_sz - 1) / 2
+        box_sz = torch.Tensor(box_sz)
+        target_ul = torch.Tensor(target_ul)
         return torch.cat([target_ul.flip((0,)), box_sz.flip((0,))])
 
     def init_memory(self, train_x: TensorList):

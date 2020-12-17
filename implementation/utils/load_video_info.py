@@ -2,7 +2,7 @@ import numpy as np
 import os.path
 
 def load_video_info(path):
-    gt_path = "/".join(path.split("/")[:-2])
+    gt_path = path #"/".join(path.split("/")[:-2])
     gt_path = "{}/groundtruth_rect.txt".format(gt_path)
     try:
         ground_truth = np.loadtxt(gt_path)
@@ -14,7 +14,7 @@ def load_video_info(path):
     seq["len"] = len(ground_truth)
     seq["init_rect"] = ground_truth[0]
 
-    img_path = path  # + '/img/'
+    img_path = path + '/img/'
     img_files = list()
     if (os.path.isfile(img_path + '%04d' % 1 + '.png')):
         for i in range(1,seq["len"]):

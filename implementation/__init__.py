@@ -5,3 +5,5 @@ from .sample_space_model import SampleSpace
 from .train import train_joint, train_filter
 from .fourier_tools import *
 from .scale_filter import ScaleFilter
+from .prdimp_tracker import PrDiMPTracker
+from .pytracking import ltr

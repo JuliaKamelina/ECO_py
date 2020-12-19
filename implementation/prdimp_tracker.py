@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from .feature_extraction import PrDiMPFeatures, augmentation
 from .localization import localize_target, refine_target_box
 from .runfiles import settings
-from .utils import _round, TensorList, plot_graph, show_tensor
+from .utils import TensorList, plot_graph, show_tensor
 
 class PrDiMPTracker:
     def __init__(self, seq, image_sz, net_path, is_color=True):
@@ -21,7 +21,7 @@ class PrDiMPTracker:
         sz = [settings.image_sample_size, settings.image_sample_size]
         self.img_sample_sz = torch.Tensor(sz)
         self.img_support_sz = self.img_sample_sz
-        search_area = torch.prod(self.target_sz * settings.search_area_scale)
+        search_area = torch.prod(self.target_sz * settings.search_area_scale).item()
         self.target_scale =  math.sqrt(search_area) / self.img_sample_sz.prod().sqrt()
         self.base_target_sz = self.target_sz / self.target_scale
         if not hasattr(settings, 'scale_factors'):
@@ -159,7 +159,7 @@ class PrDiMPTracker:
             learning_rate = settings.learning_rate
 
         # Update the tracker memory
-        if hard_negative_flag: #self.frame_num % self.params.get('train_sample_interval', 1)==0
+        if hard_negative_flag or self.frame_num % getattr(settings, 'train_sample_interval', 1) == 0:
             self.update_memory(TensorList([train_x]), target_box, learning_rate)
 
         # Decide the number of iterations to run
@@ -205,10 +205,10 @@ class PrDiMPTracker:
         aug_expansion_sz = self.img_sample_sz.clone()
         aug_output_sz = None
         if aug_expansion_factor != 1:
-            aug_expansion_sz = (self.img_sample_sz * aug_expansion_factor)
-            aug_expansion_sz += (aug_expansion_sz - self.img_sample_sz) % 2
+            aug_expansion_sz = (self.img_sample_sz * aug_expansion_factor).long()
+            aug_expansion_sz += (aug_expansion_sz - self.img_sample_sz.long()) % 2
             aug_expansion_sz = aug_expansion_sz.float()
-            aug_output_sz = self.img_sample_sz.tolist()
+            aug_output_sz = self.img_sample_sz.long().tolist()
 
         get_rand_shift = lambda: None
         random_shift_factor = getattr(settings, 'random_shift_factor', 0)
@@ -288,7 +288,7 @@ class PrDiMPTracker:
         # Get target filter by running the discriminative model prediction module
         with torch.no_grad():
             self.target_filter, _, losses = self.features.net.classifier.get_filter(x, target_boxes, num_iter=num_iter,
-                                                                           compute_losses=plot_loss)
+                                                                                    compute_losses=plot_loss)
 
         # Init memory
         if settings.update_classifier:
@@ -315,8 +315,8 @@ class PrDiMPTracker:
         box_center = (pos - sample_pos) / sample_scale + (self.img_sample_sz - 1) / 2
         box_sz = sz / sample_scale
         target_ul = box_center - (box_sz - 1) / 2
-        box_sz = torch.Tensor(box_sz)
-        target_ul = torch.Tensor(target_ul)
+        # box_sz = torch.Tensor(box_sz)
+        # target_ul = torch.Tensor(target_ul)
         return torch.cat([target_ul.flip((0,)), box_sz.flip((0,))])
 
     def init_memory(self, train_x: TensorList):
@@ -352,6 +352,47 @@ class PrDiMPTracker:
         self.target_boxes[replace_ind[0],:] = target_box
 
         self.num_stored_samples += 1
+
+    def update_sample_weights(self, sample_weights, previous_replace_ind, num_stored_samples, num_init_samples, learning_rate = None):
+        # Update weights and get index to replace
+        replace_ind = []
+        for sw, prev_ind, num_samp, num_init in zip(sample_weights, previous_replace_ind, num_stored_samples, num_init_samples):
+            lr = learning_rate
+            if lr is None:
+                lr = settings.learning_rate
+
+            init_samp_weight = getattr(settings, 'init_samples_minimum_weight', None)
+            if init_samp_weight == 0:
+                init_samp_weight = None
+            s_ind = 0 if init_samp_weight is None else num_init
+
+            if num_samp == 0 or lr == 1:
+                sw[:] = 0
+                sw[0] = 1
+                r_ind = 0
+            else:
+                # Get index to replace
+                if num_samp < sw.shape[0]:
+                    r_ind = num_samp
+                else:
+                    _, r_ind = torch.min(sw[s_ind:], 0)
+                    r_ind = r_ind.item() + s_ind
+
+                # Update weights
+                if prev_ind is None:
+                    sw /= 1 - lr
+                    sw[r_ind] = lr
+                else:
+                    sw[r_ind] = sw[prev_ind] / (1 - lr)
+
+            sw /= sw.sum()
+            if init_samp_weight is not None and sw[:num_init].sum() < init_samp_weight:
+                sw /= init_samp_weight + sw[num_init:].sum()
+                sw[:num_init] = init_samp_weight / num_init
+
+            replace_ind.append(r_ind)
+
+        return replace_ind
 
     def init_iou_net(self, backbone_feat):
         # Setup IoU net and objective

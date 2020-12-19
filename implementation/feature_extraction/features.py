@@ -411,20 +411,20 @@ class PrDiMPFeatures(Features):
             img_sample_sz = (img_sample_sz.float() / shrink_factor).long()
 
         if output_sz is not None:
-            resize_factor = torch.min(img_sample_sz / output_sz)
+            resize_factor = torch.min(img_sample_sz.float() / output_sz.float()).item()
             df = int(max(int(resize_factor - 0.1), 1))
         else:
             df = int(1)
-        sz = img_sample_sz / df
+        sz = img_sample_sz.float() / df
 
         if df > 1:
             os = posl % df              # offset
             posl = (posl - os) // df     # new position
-            im2 = im[..., os[0]::df, os[1]::df]   # downsample
+            im2 = im[..., os[0].item()::df, os[1].item()::df]   # downsample
         else:
             im2 = im
 
-        sz = torch.Tensor(sz)
+        # sz = torch.Tensor(sz)
         szl = torch.max(sz.round(), torch.Tensor([2])).long()
 
         # Extract top and bottom coordinates
@@ -448,7 +448,7 @@ class PrDiMPFeatures(Features):
         if output_sz is None or (im_patch.shape[-2] == output_sz[0] and im_patch.shape[-1] == output_sz[1]):
             return im_patch.clone(), patch_coord
 
-        output_sz = torch.Tensor(output_sz)
+        # output_sz = torch.Tensor(output_sz)
         im_patch = F.interpolate(im_patch, output_sz.long().tolist(), mode='bilinear')
 
         return im_patch, patch_coord

@@ -2,6 +2,7 @@ import numpy as np
 import cv2 as cv
 import math
 import time
+import torch
 import sys
 
 # import cProfile
@@ -22,12 +23,12 @@ from .scale_filter import ScaleFilter
 from .runfiles import settings
 
 def _round(x):
-    res = x.copy()
+    res = x.numpy()
     res[0] = np.ceil(x[0]) if x[0] - np.floor(x[0]) >= 0.5 else np.floor(x[0])
     res[1] = np.ceil(x[1]) if x[1] - np.floor(x[1]) >= 0.5 else np.floor(x[1])
     return res
 
-class Tracker:
+class ECOTracker:
     def InitCG(self):
         self.init_CG_opts = {
             "CG_use_FR": True,
@@ -280,7 +281,9 @@ class Tracker:
                 self.pos[0] + self.target_sz[0]/2)  # y_max
         # print(self.pos)
         # print(self.target_sz)
-        return (bbox, tracker_time)
+        out = {'target_bbox': bbox,
+               'time': tracker_time}
+        return out
 
 
     def track(self, frame, iter):
@@ -288,67 +291,68 @@ class Tracker:
         tic = time.clock()
 
         # TARGET LOCALIZATION
-        old_pos = np.zeros((2))
         for _ in range(0, settings.refinement_iterations):
-            if not np.allclose(old_pos, self.pos):
-                old_pos = self.pos.copy()
-                self.sample_pos = _round(self.pos)
-                sample_scale = self.currentScaleFactor*self.scaleFactors
-                xt = [x for i in range(0, len(features))
-                      for x in features[i].get_feature(frame, self.sample_pos,
-                                                      features[i].img_sample_sz, sample_scale, i)] # extract features
+            if isinstance(self.pos, torch.Tensor):
+                old_pos = self.pos.numpy()
+            else:
+                old_pos = self.pos
+            self.sample_pos = np.round(old_pos)
+            sample_scales = self.currentScaleFactor*self.scaleFactors
+            xt = [x for i in range(0, len(features))
+                  for x in features[i].get_feature(frame, self.sample_pos,
+                                                  features[i].img_sample_sz, sample_scales)] # extract features
 
-                xt_proj = project_sample(xt, self.proj_matrix)  # project sample
-                xt_proj = [fmap * cos for fmap, cos in zip(xt_proj, self.cos_window)]  # do windowing
-                xtf_proj = [cfft2(x) for x in xt_proj]  # fouries series
-                xtf_proj = interpolate_dft(xtf_proj, self.interp1_fs, self.interp2_fs)  # interpolate features
+            xt_proj = project_sample(xt, self.proj_matrix)  # project sample
+            xt_proj = [fmap * cos for fmap, cos in zip(xt_proj, self.cos_window)]  # do windowing
+            xtf_proj = [cfft2(x) for x in xt_proj]  # fouries series
+            xtf_proj = interpolate_dft(xtf_proj, self.interp1_fs, self.interp2_fs)  # interpolate features
 
-                # compute convolution for each feature block in the fourier domain, then sum over blocks
-                self.scores_fs_feat = [[]]*self.num_feature_blocks
-                self.scores_fs_feat[self.k_max] = np.sum(self.hf_full[self.k_max]*xtf_proj[self.k_max], 2)
-                scores_fs = self.scores_fs_feat[self.k_max]
+            # compute convolution for each feature block in the fourier domain, then sum over blocks
+            self.scores_fs_feat = [[]]*self.num_feature_blocks
+            self.scores_fs_feat[self.k_max] = np.sum(self.hf_full[self.k_max]*xtf_proj[self.k_max], 2)
+            scores_fs = self.scores_fs_feat[self.k_max]
 
-                for ind in self.block_inds:
-                    self.scores_fs_feat[ind] = np.sum(self.hf_full[ind]*xtf_proj[ind], 2)
-                    scores_fs[int(self.pad_sz[ind][0]):int(self.output_sz[0]-self.pad_sz[ind][0]),
-                              int(self.pad_sz[ind][1]):int(self.output_sz[0]-self.pad_sz[ind][1])] += self.scores_fs_feat[ind]
+            for ind in self.block_inds:
+                self.scores_fs_feat[ind] = np.sum(self.hf_full[ind]*xtf_proj[ind], 2)
+                scores_fs[int(self.pad_sz[ind][0]):int(self.output_sz[0]-self.pad_sz[ind][0]),
+                          int(self.pad_sz[ind][1]):int(self.output_sz[0]-self.pad_sz[ind][1])] += self.scores_fs_feat[ind]
 
-                # OPTIMIZE SCORE FUNCTION with Newnot's method.
-                trans_row, trans_col, scale_idx = optimize_scores(scores_fs, settings.newton_iterations)
+            # OPTIMIZE SCORE FUNCTION with Newnot's method.
+            trans_row, trans_col, scale_idx = optimize_scores(scores_fs, settings.newton_iterations)
 
-                # compute the translation vector in pixel-coordinates and round to the cloest integer pixel
-                translation_vec = np.array([trans_row, trans_col]) * (self.img_support_sz/self.output_sz) * \
-                                  self.currentScaleFactor * self.scaleFactors[scale_idx]
-                scale_change_factor = self.scaleFactors[scale_idx]
+            # compute the translation vector in pixel-coordinates and round to the cloest integer pixel
+            translation_vec = np.array([trans_row, trans_col]) * (self.img_support_sz/self.output_sz) * \
+                              self.currentScaleFactor * self.scaleFactors[scale_idx]
+            scale_change_factor = self.scaleFactors[scale_idx]
 
-                # update_position
-                self.pos = self.sample_pos + translation_vec
+            # update_position
+            self.pos = self.sample_pos + translation_vec
 
-                if settings.clamp_position:
-                    self.pos = np.maximum(np.array(0, 0), np.minimum(np.array(frame.shape[:2]), self.pos))
+            if settings.clamp_position:
+                self.pos = np.maximum(np.array(0, 0), np.minimum(np.array(frame.shape[:2]), self.pos))
 
-                # do scale tracking with scale filter
-                if self.nScales > 0 and settings.use_scale_filter:
-                    scale_change_factor = self.scale_filter.track(frame, self.pos, self.base_target_sz,
-                                                                  self.currentScaleFactor)
+            # do scale tracking with scale filter
+            if self.nScales > 0 and settings.use_scale_filter:
+                scale_change_factor = self.scale_filter.track(frame, self.pos, self.base_target_sz,
+                                                              self.currentScaleFactor)
 
-                # update scale
-                self.currentScaleFactor *= scale_change_factor
+            # update scale
+            self.currentScaleFactor *= scale_change_factor
 
-                # adjust to make sure we are not to large or to small
-                if self.currentScaleFactor < self.min_scale_factor:
-                    self.currentScaleFactor = self.min_scale_factor
-                elif self.currentScaleFactor > self.max_scale_factor:
-                    self.currentScaleFactor = self.max_scale_factor
+            # adjust to make sure we are not to large or to small
+            if self.currentScaleFactor < self.min_scale_factor:
+                self.currentScaleFactor = self.min_scale_factor
+            elif self.currentScaleFactor > self.max_scale_factor:
+                self.currentScaleFactor = self.max_scale_factor
 
         # MODEL UPDATE STEP
         if settings.learning_rate > 0:
             # use sample that was used for detection
-            sample_scale = sample_scale[scale_idx]
+            sample_scale = sample_scales[scale_idx]
             xlf_proj = [xf[:, :(xf.shape[1]+1)//2, :, scale_idx:scale_idx+1] for xf in xtf_proj]
 
             # shift sample target is centred
-            shift_samp = 2*np.pi*(self.pos - self.sample_pos)/(sample_scale*self.img_support_sz)
+            shift_samp = 2*np.pi*(old_pos - self.sample_pos)/(sample_scale*self.img_support_sz)
             xlf_proj = shift_sample(xlf_proj, shift_samp, self.kx, self.ky)
 
         # update the samplesf to include the new sample. The distance matrix, kernel matrix and prior weight are also updated
@@ -392,4 +396,7 @@ class Tracker:
                 self.pos[0] + self.target_sz[0]/2)  # y_max
         # print(self.pos)
         # print(self.target_sz)
-        return (bbox, tracker_time)
+        out = {'target_bbox': bbox,
+                'time': tracker_time}
+        state = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
+        return out, [state, scores_fs, self.samplesf, scale_idx, self.pos, sample_scales, self.scores_fs_feat]

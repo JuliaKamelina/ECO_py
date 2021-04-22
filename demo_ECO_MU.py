@@ -6,8 +6,9 @@ import argparse
 
 from PIL import Image
 sys.path.append('./')
+sys.path.append('./implementation/pytracking')
 
-from implementation import ECOTracker
+from implementation import ECOMUTracker
 from implementation.utils import load_video_info, get_sequence_info
 
 
@@ -16,12 +17,12 @@ def demo_tracker(video_path, no_show):
     seq = get_sequence_info(seq)
     frames = [np.array(Image.open(f)) for f in seq["image_files"]]
     is_color = True if (len(frames[0].shape) == 3) else False
-    tracker = ECOTracker(seq, frames[0], is_color)
+    tracker = ECOMUTracker(seq, frames[0], is_color, mu_model_dir='prdimp_mu_1/')
     for i, frame in enumerate(frames):
         if i == 0:
-            output = tracker.init_tracker(frame)
+            output = tracker.initializing(frame, seq, reuse=False)
         else:
-            output, _ = tracker.track(frame, i)
+            output, _ = tracker.tracking(frame)
         bbox = output.get('target_bbox', seq['init_rect'])
         time = output.get('time', 1)
         print(i)
